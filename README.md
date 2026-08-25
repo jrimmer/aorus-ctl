@@ -18,11 +18,19 @@ The vendor report effectively **encapsulates DDC/CI**, and the command opcodes a
 
 ## Build & run
 
+CLI:
+
 ```bash
 swift build            # requires Xcode + Command Line Tools (macOS, Apple Silicon or Intel)
 .build/debug/aorusctl list
 .build/debug/aorusctl --dry-run set brightness 50   # show bytes, don't send
 .build/debug/aorusctl set brightness 50             # actually apply
+```
+
+Menu-bar app:
+
+```bash
+swift run AorusApp       # launches a menu-bar icon → control panel
 ```
 
 > **Hardware precondition:** the monitor's **USB upstream** must be connected to the Mac. For the CO49DQ this is either the **USB-B** upstream port (the OSD Sidekick cable) or the **USB-C / Type-C** upstream port (which also carries KVM).
@@ -111,8 +119,8 @@ Prior art this is built on: [kelvie/gbmonctl](https://github.com/kelvie/gbmonctl
 - [x] **HID transport over IOKit (write path verified live on the CO49DQ)**
 - [x] CLI (`set` / `list` / `props` / dump / dry-run)
 - [x] Deep-dive docs (`docs/`)
-- [ ] Decode the status report for true `get <prop>` reads (open problem — gbmonctl never reads either)
-- [ ] **SwiftUI menu-bar app** wrapping AorusCore (sliders, PBP/PIP toggles, KVM switch)
+- [x] **SwiftUI menu-bar app** (`AorusApp`) — sliders, PBP/PIP, KVM, picture modes, colour
+- [ ] True `get <prop>` reads — **blocked by hardware**: the CO49DQ HID controller is write-only; reads need cable-DDC (see docs/protocol.md §5)
 - [ ] Handle alternate controller VID:PID if a different panel uses one
 
 ## Safety
