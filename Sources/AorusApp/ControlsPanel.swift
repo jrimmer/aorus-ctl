@@ -184,30 +184,33 @@ private struct PbpSection: View {
             )
 
             if (store.values[.pbpPipMode] ?? 0) != 0 {
-                MenuPicker<PresetValue.Input>(
-                    label: "Second source",
-                    control: .pbpPipSource,
-                    key: .pbpPipSource,
-                    options: [
-                        (.hdmi1, "HDMI 1"),
-                        (.hdmi2, "HDMI 2"),
-                        (.dp, "DisplayPort"),
-                        (.typeC, "USB-C"),
-                    ]
-                )
-
-                // Swap the two PBP/PIP inputs at the monitor. Uses the native
-                // vendor swap opcode (0xe0 0x10 = 1), which exchanges the
-                // physical sides in PBP and the primary/secondary inputs in PIP
-                // WITHOUT re-assigning the source values (the earlier manual
-                // re-assignment produced a mirror).
-                Button {
-                    store.set(.pbpPipSwitch, value: 1)
-                } label: {
-                    Label("Swap sides", systemImage: "arrow.left.arrow.right")
+                // The two sources (primary and Second) sit side by side with the
+                // Switch button between them, all on one line. Switch uses the
+                // native vendor swap opcode (0xe0 0x10 = 1), which exchanges the
+                // physical PBP sides / PIP primary-secondary inputs without
+                // re-assigning the source values.
+                HStack(spacing: 10) {
+                    CompactSourcePicker(
+                        label: "Source",
+                        control: .source,
+                        key: .source
+                    )
+                    Spacer(minLength: 4)
+                    Button {
+                        store.set(.pbpPipSwitch, value: 1)
+                    } label: {
+                        Label("Switch", systemImage: "arrow.left.arrow.right")
+                            .labelStyle(.titleOnly)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Swap the two PBP/PIP inputs at the monitor")
+                    Spacer(minLength: 4)
+                    CompactSourcePicker(
+                        label: "Second",
+                        control: .pbpPipSource,
+                        key: .pbpPipSource
+                    )
                 }
-                .buttonStyle(.borderless)
-                .help("Swap the two PBP/PIP inputs at the monitor")
             }
 
             if (store.values[.pbpPipMode] ?? 0) == 1 {
@@ -262,8 +265,8 @@ private struct PictureSection: View {
                 ]
             )
 
-            Toggle("FreeSync", isOn: boolBinding(for: .freeSync))
-            Toggle("Low blue light", isOn: boolBinding(for: .lowBlueLight))
+            toggleRow(label: "FreeSync", isOn: boolBinding(for: .freeSync))
+            toggleRow(label: "Low blue light", isOn: boolBinding(for: .lowBlueLight))
         }
     }
 
@@ -275,6 +278,22 @@ private struct PictureSection: View {
                 store.set(control, value: newValue ? 1 : 0)
             }
         )
+    }
+
+    /// A toggle row whose switch aligns on the right with the dropdown picker
+    /// column (110pt label column, then a right-aligned switch), so FreeSync and
+    /// Low blue light line up with the Mode dropdown.
+    private func toggleRow(label: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(label)
+                .frame(width: 110, alignment: .leading)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .frame(maxWidth: 170, alignment: .trailing)
+        }
+        .controlSize(.small)
     }
 }
 
@@ -363,5 +382,44 @@ private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 
             .frame(maxWidth: 170)
         }
         .controlSize(.small)
+    }
+}
+
+/// A compact input-source picker (label above a narrow Picker) used in the
+/// PBP/PIP horizontal source row, where two source dropdowns share one line
+/// with the Switch button between them.
+private struct CompactSourcePicker: View {
+    let label: String
+    let control: MonitorControl
+    let key: MonitorControl
+
+    private static let options: [(PresetValue.Input, String)] = [
+        (.hdmi1, "HDMI 1"),
+        (.hdmi2, "HDMI 2"),
+        (.dp, "DP"),
+        (.typeC, "USB-C"),
+    ]
+
+    @EnvironmentObject var store: MonitorStore
+
+    var body: some View {
+        let current = store.values[key] ?? control.range.lowerBound
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Picker("", selection: Binding<UInt16>(
+                get: { current },
+                set: { store.set(key, value: $0) }
+            )) {
+                ForEach(Self.options, id: \.1) { option in
+                    Text(option.1).tag(option.0.rawValue)
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(maxWidth: 86)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
