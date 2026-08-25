@@ -132,10 +132,9 @@ private struct SliderRow: View {
     }
 }
 
-/// A native AppKit `NSSlider` wrapped for SwiftUI. Shows 11 tick marks (0-100 in
-/// 10-unit "10 pt" stops) while still allowing micro-adjustment: tick marks are
-/// visual only, so the value can land anywhere in the range (stepped by the
-/// caller).
+/// A native AppKit `NSSlider` wrapped for SwiftUI — the stock macOS slider
+/// with no tick marks, so it looks like any other system slider. Continuous so
+/// the monitor updates live as the knob is dragged.
 private struct NativeSlider: NSViewRepresentable {
     @Binding var value: Double
 
@@ -145,9 +144,6 @@ private struct NativeSlider: NSViewRepresentable {
             target: context.coordinator, action: #selector(Coordinator.valueChanged(_:))
         )
         slider.isContinuous = true
-        slider.numberOfTickMarks = 11
-        slider.allowsTickMarkValuesOnly = false
-        slider.tickMarkPosition = .below
         slider.controlSize = .small
         return slider
     }
@@ -207,10 +203,27 @@ private struct InputSection: View {
 /// PBP / PIP multi-picture configuration.
 private struct PbpSection: View {
     @EnvironmentObject var store: MonitorStore
+    @State private var showKeyHelp = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionTitle("PBP / PIP")
+            HStack(spacing: 6) {
+                SectionTitle("PBP / PIP")
+                // Tooltip-style help: a circled "?" that pops over the key
+                // controls.
+                Button {
+                    showKeyHelp.toggle()
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Keyboard shortcuts")
+                .popover(isPresented: $showKeyHelp, arrowEdge: .bottom) {
+                    KeyHelpPopover()
+                }
+            }
 
             MenuPicker<PresetValue.PbpPipMode>(
                 label: "Mode",
@@ -338,7 +351,6 @@ private struct PictureSection: View {
     private func toggleRow(label: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Text(label)
-                .padding(.leading, panelLabelIndent)
             Spacer()
             Toggle("", isOn: isOn)
                 .labelsHidden()
@@ -407,9 +419,45 @@ private struct SectionTitle: View {
     }
 }
 
-/// Left indent matching the slider label column (icon 18pt + 8pt gap) so
-/// dropdown and toggle labels align with the slider labels.
-private let panelLabelIndent: CGFloat = 26
+/// Popover listing the system-wide keyboard shortcuts.
+private struct KeyHelpPopover: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Keyboard shortcuts")
+                .font(.caption.weight(.semibold))
+            keyCap("P")
+            Text("Cycle PBP/PIP mode (Off → PIP → PBP → Off)")
+                .font(.caption)
+            keyCap("X")
+            Text("Swap the two PBP/PIP inputs")
+                .font(.caption)
+            keyCap("Q")
+            Text("Quit Aorus")
+                .font(.caption)
+        }
+        .padding(12)
+        .frame(width: 240, alignment: .leading)
+    }
+
+    /// Renders a ⌘⇧<key> cap row.
+    private func keyCap(_ key: String) -> some View {
+        HStack(spacing: 3) {
+            cap("⌘")
+            cap("⇧")
+            cap(key)
+            Spacer()
+        }
+    }
+
+    private func cap(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.caption2, design: .rounded).weight(.semibold))
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(RoundedRectangle(cornerRadius: 4)
+                .fill(Color.gray.opacity(0.22)))
+    }
+}
 
 /// A picker fed by raw `UInt16` values, labelled and bound to a monitor control.
 private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 {
@@ -424,7 +472,6 @@ private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 
         let current = store.values[key] ?? control.range.lowerBound
         HStack {
             Text(label)
-                .padding(.leading, panelLabelIndent)
             Spacer()
             Picker("", selection: Binding<UInt16>(
                 get: { current },
