@@ -134,6 +134,7 @@ e.g. brightness (single command byte + 2 value bytes) ⇒ `0x81 + 3 = 0x84`;
 a vendor command (`0xe0 XX` = 2 bytes + 2 value bytes) ⇒ `0x81 + 4 = 0x85`.
 
 > **Two encoding gotchas (both verified on the CO49DQ):**
+>
 > 1. The vendor prefix in the HID frame is **`0xe0`**, not the `0x0e` used in
 >    ddcutil-style community tables — using `0x0e` makes the panel silently
 >    ignore the write.

@@ -44,8 +44,29 @@ public final class MonitorStore: ObservableObject {
     private var controller: MonitorController?
     private var ddcReader: DDCReader?
 
-    public init() {
-        self.values = Self.initialValues
+    /// Backing defaults store; injectable for tests.
+    private let defaults: UserDefaults
+
+    /// UserDefaults key prefix for persisting last-known control values.
+    /// Persistence lets the app remember the monitor's true vendor-control state
+    /// (PBP/PIP mode, KVM, picture mode, sources, …) across launches, since the
+    /// CO49DQ provides no read-back for those controls (the HID controller is
+    /// write-only and cable-DDC does not serve vendor feature reads).
+    private static let defaultsPrefix = "aorus.lastKnown."
+
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        // Restore last-known values (persisted on each set) before falling back
+        // to safe defaults, so vendor controls reflect what we previously
+        // applied rather than a guessed default.
+        var loaded = Self.initialValues
+        for control in loaded.keys {
+            let key = Self.defaultsPrefix + control.label
+            if defaults.object(forKey: key) != nil {
+                loaded[control] = UInt16(defaults.integer(forKey: key))
+            }
+        }
+        self.values = loaded
     }
 
     /// Attempts to open the monitor control device. Called on app launch and
@@ -87,7 +108,9 @@ public final class MonitorStore: ObservableObject {
             for (control, vcp) in mapping {
                 if let reading = reader.read(vcp) {
                     Task { @MainActor [weak self] in
-                        self?.values[control] = reading.current
+                        guard let self else { return }
+                        self.values[control] = reading.current
+                        self.defaults.set(Int(reading.current), forKey: Self.defaultsPrefix + control.label)
                     }
                 }
             }
@@ -118,6 +141,9 @@ public final class MonitorStore: ObservableObject {
             }
         }
         self.values[control] = clamped
+        // Persist the last-known value so vendor controls (which have no
+        // read-back) are restored accurately on the next launch.
+        self.defaults.set(Int(clamped), forKey: Self.defaultsPrefix + control.label)
         return controller != nil
     }
 }
