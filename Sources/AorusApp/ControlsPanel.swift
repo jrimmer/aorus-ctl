@@ -434,13 +434,14 @@ private struct KeyHelpPopover: View {
         .fixedSize()
     }
 
-    /// A single shortcut: key caps on the left, description beside them.
+    /// A single shortcut: description first, key caps trailing on the right
+    /// (like a standard menu item's keyboard shortcut).
     private func shortcutRow(keys: [String], label: String) -> some View {
         HStack(spacing: 3) {
-            ForEach(keys, id: \.self) { cap($0) }
             Text(label)
                 .font(.caption)
-                .padding(.leading, 6)
+            Spacer(minLength: 12)
+            ForEach(keys, id: \.self) { cap($0) }
         }
     }
 
