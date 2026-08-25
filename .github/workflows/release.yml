@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: macos-14 # Apple Silicon runner
+    runs-on: macos-15 # Apple Silicon runner with Swift 6.x (macos-14 only ships Swift 5.10)
     env:
       CERT_B64: ${{ secrets.DEVELOPER_ID_CERT }}
       CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
