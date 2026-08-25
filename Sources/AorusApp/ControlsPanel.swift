@@ -209,6 +209,30 @@ private struct PbpSection: View {
                 .buttonStyle(.borderless)
                 .help("Swap the two PBP/PIP inputs at the monitor")
             }
+
+            if (store.values[.pbpPipMode] ?? 0) == 1 {
+                MenuPicker<PresetValue.PipSize>(
+                    label: "PIP size",
+                    control: .pipSize,
+                    key: .pipSize,
+                    options: [
+                        (.large, "Large"),
+                        (.medium, "Medium"),
+                        (.small, "Small"),
+                    ]
+                )
+                MenuPicker<PresetValue.PipLocation>(
+                    label: "PIP location",
+                    control: .pipLocation,
+                    key: .pipLocation,
+                    options: [
+                        (.topLeft, "Top-left"),
+                        (.topRight, "Top-right"),
+                        (.bottomLeft, "Bottom-left"),
+                        (.bottomRight, "Bottom-right"),
+                    ]
+                )
+            }
         }
     }
 }

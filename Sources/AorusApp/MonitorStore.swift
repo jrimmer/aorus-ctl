@@ -26,6 +26,8 @@ public final class MonitorStore: ObservableObject {
         .overdrive: 1,           // balance
         .pbpPipMode: 0,          // off
         .pbpPipSource: 3,        // Type-C
+        .pipSize: 0,             // large
+        .pipLocation: 0,         // top-left
         .pictureMode: 0,         // standard
         .source: 3,              // Type-C
         .kvmSwitch: 1,           // Type-C

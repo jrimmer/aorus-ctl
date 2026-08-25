@@ -171,6 +171,12 @@ public enum PresetValue {
     public enum PbpPipMode: UInt16 {
         case off = 0, pip = 1, pbp = 2
     }
+    public enum PipSize: UInt16 {
+        case large = 0, medium = 1, small = 2
+    }
+    public enum PipLocation: UInt16 {
+        case topLeft = 0, topRight = 1, bottomLeft = 2, bottomRight = 3
+    }
     public enum PictureMode: UInt16 {
         case standard = 0, fps = 1, rtsRpg = 2, movie = 3, reader = 4, sRGB = 5, custom1 = 6, custom2 = 7, custom3 = 8
     }
