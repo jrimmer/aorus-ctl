@@ -27,7 +27,9 @@ cd "$PROJECT_ROOT"
 
 APP_NAME="Aorus"
 BUNDLE_ID="net.rimmer.aorus"
-VERSION="1.0.0"
+# Allow the tag/CI to set the version (e.g. via the release workflow's
+# "Determine version" step or a release commit); default to 1.0.0 locally.
+VERSION="${VERSION:-1.0.0}"
 BUILD_NUMBER="1"
 MODE="unsigned" # unsigned | sign | distribute
 
