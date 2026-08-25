@@ -29,7 +29,7 @@ APP_NAME="Aorus"
 BUNDLE_ID="net.rimmer.aorus"
 VERSION="1.0.0"
 BUILD_NUMBER="1"
-MODE="unsigned"          # unsigned | sign | distribute
+MODE="unsigned" # unsigned | sign | distribute
 
 DIST_DIR="dist"
 BUILD_DIR="$DIST_DIR/build"
@@ -39,18 +39,24 @@ DMG_OUT="$DIST_DIR/$APP_NAME-$VERSION.dmg"
 # ---- Parse args -----------------------------------------------------
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --sign) MODE="sign"; shift ;;
-        --distribute) MODE="distribute"; shift ;;
-        --env-file)
-            shift
-            # shellcheck disable=SC1090
-            source "$1"
-            shift
-            ;;
-        *)
-            echo "Unknown option: $1" >&2
-            exit 2
-            ;;
+    --sign)
+        MODE="sign"
+        shift
+        ;;
+    --distribute)
+        MODE="distribute"
+        shift
+        ;;
+    --env-file)
+        shift
+        # shellcheck disable=SC1090
+        source "$1"
+        shift
+        ;;
+    *)
+        echo "Unknown option: $1" >&2
+        exit 2
+        ;;
     esac
 done
 
@@ -61,9 +67,12 @@ if [[ "$MODE" == "distribute" && -f .env.release ]]; then
 fi
 
 # ---- Helpers ---------------------------------------------------------
-log()  { printf '\033[1;34m[build]\033[0m %s\n' "$*"; }
+log() { printf '\033[1;34m[build]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
-die()  { printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
+die() {
+    printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2
+    exit 1
+}
 
 # ---- 1. Build the executable ----------------------------------------
 log "Building $APP_NAME (release, $VERSION)"
@@ -77,7 +86,7 @@ rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
 cp "$RELEASE_BIN" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 cp -- "$(dirname "${BASH_SOURCE[0]}")/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
-printf 'APPL????' > "$APP_BUNDLE/Contents/PkgInfo"
+printf 'APPL????' >"$APP_BUNDLE/Contents/PkgInfo"
 
 # Inject version/build numbers and bundle ID into Info.plist.
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP_BUNDLE/Contents/Info.plist"
@@ -87,19 +96,19 @@ printf 'APPL????' > "$APP_BUNDLE/Contents/PkgInfo"
 # ---- 3. Sign ---------------------------------------------------------
 SIGN_IDENTITY=""
 case "$MODE" in
-    unsigned)
-        warn "Unsigned build — other Macs will need right-click > Open to run."
-        ;;
-    sign)
-        # Local signing: use ad-hoc if no Apple Development identity is handy.
-        SIGN_IDENTITY="-"
-        log "Signing ad-hoc (local use only)"
-        ;;
-    distribute)
-        SIGN_IDENTITY="${DEVELOPER_ID_APPLICATION:-}"
-        [[ -n "$SIGN_IDENTITY" ]] || die "MODE=distribute requires DEVELOPER_ID_APPLICATION identity"
-        log "Signing with Developer ID: $SIGN_IDENTITY"
-        ;;
+unsigned)
+    warn "Unsigned build — other Macs will need right-click > Open to run."
+    ;;
+sign)
+    # Local signing: use ad-hoc if no Apple Development identity is handy.
+    SIGN_IDENTITY="-"
+    log "Signing ad-hoc (local use only)"
+    ;;
+distribute)
+    SIGN_IDENTITY="${DEVELOPER_ID_APPLICATION:-}"
+    [[ -n "$SIGN_IDENTITY" ]] || die "MODE=distribute requires DEVELOPER_ID_APPLICATION identity"
+    log "Signing with Developer ID: $SIGN_IDENTITY"
+    ;;
 esac
 
 if [[ "$MODE" != "unsigned" ]]; then
