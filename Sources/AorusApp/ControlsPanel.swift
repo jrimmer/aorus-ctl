@@ -196,21 +196,20 @@ private struct PbpSection: View {
                     ]
                 )
 
+                // Swap the two PBP/PIP inputs at the monitor. Uses the native
+                // vendor swap opcode (0xe0 0x10 = 1), which exchanges the
+                // physical sides in PBP and the primary/secondary inputs in PIP
+                // WITHOUT re-assigning the source values (the earlier manual
+                // re-assignment produced a mirror).
+                Button {
+                    store.set(.pbpPipSwitch, value: 1)
+                } label: {
+                    Label("Swap sides", systemImage: "arrow.left.arrow.right")
+                }
+                .buttonStyle(.borderless)
+                .help("Swap the two PBP/PIP inputs at the monitor")
             }
         }
-    }
-
-    /// Asks the monitor to swap the two PBP/PIP inputs via the native vendor
-    /// swap opcode (0xe0 0x10 = 1). This exchanges the physical sides in PBP
-    /// and the primary/secondary inputs in PIP without reassigning the source
-    /// values.
-    ///
-    /// Not currently wired to a visible button: the earlier manual source-
-    /// re-assignment produced a mirror rather than a genuine side-swap, so the
-    /// button was removed. This monitor-native form is the correct methodology
-    /// to re-enable once verified live.
-    private func swapSources() {
-        store.set(.pbpPipSwitch, value: 1)
     }
 }
 
