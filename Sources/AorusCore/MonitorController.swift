@@ -9,7 +9,7 @@
 
 import Foundation
 
-public struct MonitorController {
+public struct MonitorController: Sendable {
     public let connection: MonitorConnection
 
     public init(connection: MonitorConnection) {

@@ -42,23 +42,55 @@ public final class MonitorStore: ObservableObject {
 
     private let ioQueue = DispatchQueue(label: "aorus.app.io", qos: .userInitiated)
     private var controller: MonitorController?
+    private var ddcReader: DDCReader?
 
     public init() {
         self.values = Self.initialValues
     }
 
     /// Attempts to open the monitor control device. Called on app launch and
-    /// from the panel (e.g. a Retry button).
+    /// from the panel (e.g. a Retry button). Also seeds brightness/contrast/
+    /// volume/sharpness from the *cable-DDC* read, which is the only path that
+    /// reports real current values (the HID controller is write-only).
     public func connect() {
-        guard controller == nil else { return }
-        do {
-            let monitor = try MonitorController.openFirst()
-            self.controller = monitor
-            self.isConnected = true
-            self.statusMessage = "Connected"
-        } catch {
-            self.isConnected = false
-            self.statusMessage = "No monitor found. Is the USB upstream connected?"
+        if controller == nil {
+            do {
+                let monitor = try MonitorController.openFirst()
+                self.controller = monitor
+                self.isConnected = true
+                self.statusMessage = "Connected"
+            } catch {
+                self.isConnected = false
+                self.statusMessage = "No monitor found. Is the USB upstream connected?"
+                return
+            }
+        }
+        refreshFromDDC()
+    }
+
+    /// Re-reads brightness/contrast/volume/sharpness over cable-DDC and updates
+    /// the tracked values so the UI shows the monitor's *actual* state.
+    public func refreshFromDDC() {
+        guard isConnected else { self.statusMessage = "Not connected"; return }
+        if ddcReader == nil { ddcReader = DDCReader() }
+        guard let reader = ddcReader else {
+            self.statusMessage = "Connected (cable-DDC reads unavailable)"
+            return
+        }
+        ioQueue.async { [weak self] in
+            let mapping: [(MonitorControl, DisplayVCP)] = [
+                (.brightness, .luminance),
+                (.contrast, .contrast),
+                (.volume, .speakerVolume),
+                (.sharpness, .sharpness),
+            ]
+            for (control, vcp) in mapping {
+                if let reading = reader.read(vcp) {
+                    Task { @MainActor [weak self] in
+                        self?.values[control] = reading.current
+                    }
+                }
+            }
         }
     }
 

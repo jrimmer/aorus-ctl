@@ -53,7 +53,7 @@ func printUsage() {
     USAGE:
       aorusctl list                          Discover monitor control devices
       aorusctl set <property> <value>        Set a property on the monitor
-      aorusctl get <property>                Read a property (⚠ experimental)
+      aorusctl get <property>                Read a property via cable-DDC (brightness/contrast/volume/sharpness)
       aorusctl props                         List all known properties + ranges
       aorusctl dump                          Dump the raw status report (hex, ⚠ experimental)
       aorusctl --dry-run set <p> <v>         Print report bytes without sending (DANGER: still opens device read-only — safe)
@@ -153,21 +153,32 @@ func run(_ opts: Options) {
         }
 
     case "get":
-        guard opts.args.count == 1, let control = control(for: opts.args[0]) else {
+        // A real value read comes from the *video-cable DDC* channel, which the
+        // USB HID controller does not expose (it is write-only). `DDCReader`
+        // reads standard MCCS VCP codes over DDC on Apple Silicon.
+        guard opts.args.count >= 1, let control = control(for: opts.args[0]) else {
             print("ERROR: `get` requires a known property. Run `aorusctl props` first.")
             return
         }
-        do {
-            // Reads the live raw report — querying a single value from the
-            // status blob isn't decoded yet, so this shows the raw bytes
-            // where the value would live. See README for current decode status.
-            _ = control
-            let controller = try MonitorController.openFirst()
-            let blob = try controller.dumpStatus()
-            print("Raw status report for '\(opts.args[0])':")
-            print(hexDump(blob))
-        } catch {
-            print("ERROR: \(error)")
+        let vcp: DisplayVCP?
+        switch control {
+        case .brightness:   vcp = .luminance
+        case .contrast:     vcp = .contrast
+        case .volume:       vcp = .speakerVolume
+        case .sharpness:    vcp = .sharpness
+        default:            vcp = nil
+        }
+        guard let vcp, let reader = DDCReader() else {
+            print("ERROR: `get \(control.label)` is not readable via DDC on this display.")
+            print("  Cable-DDC reads are available for: brightness, contrast, volume, sharpness.")
+            print("  The USB HID controller is write-only, so vendor features (PBP/PIP, KVM,")
+            print("  picture modes) have no read-back. See docs/protocol.md §5.")
+            return
+        }
+        if let reading = reader.read(vcp) {
+            print("\(control.label): \(reading.current) / \(reading.maximum)")
+        } else {
+            print("ERROR: failed to read \(control.label) over DDC (unsupported or busy).")
         }
 
     case "dump":

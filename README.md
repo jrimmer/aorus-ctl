@@ -40,9 +40,9 @@ swift run AorusApp       # launches a menu-bar icon → control panel
 ```
 aorusctl list                 Discover monitor control device(s)
 aorusctl set <prop> <value>   Set a property on the monitor
-aorusctl get <prop>           Read a property from the monitor (⚠ experimental)
+aorusctl get <prop>           Read brightness/contrast/volume/sharpness via cable-DDC
 aorusctl props                List all known properties + ranges
-aorusctl dump                 Dump the raw status report (hex) (⚠ experimental)
+aorusctl dump                 Dump the raw HID status report (hex) (⚠ experimental)
 aorusctl --dry-run set p v    Print the exact report bytes without sending
 ```
 
@@ -74,11 +74,12 @@ Properties (ranges in parentheses):
 
 ## On-hardware verification (confirmed on CO49DQ)
 
-Status of the write path on the actual panel:
+Status of the interfaces on the actual panel:
 
 - **`aorusctl list`** — ✅ confirmed: finds `0x0bda:0x1100 HID Device [Realtek]`.
-- **`aorusctl set <prop> <value>`** — ✅ **confirmed**: e.g. `set brightness 50` / `30` / `70` visibly apply on the CO49DQ. The write path is verified on real hardware.
-- **`aorusctl dump` / `get`** — ⚠️ **not yet working.** Reading current status back is an open problem (the reference gbmonctl never reads either). See [docs/protocol.md §5](docs/protocol.md).*
+- **`aorusctl set <prop> <value>`** — ✅ **confirmed**: e.g. `set brightness 50` / `30` / `70` visibly apply on the CO49DQ. The USB HID write path is verified on real hardware.
+- **`aorusctl get <prop>`** — ✅ **confirmed**: reads the monitor's **real** current values over the video-cable **DDC** channel. On the CO49DQ: `get brightness` → `75 / 100`, `get contrast` → `50 / 100`, `get volume` → `30 / 100`, `get sharpness` → `5 / 10`. (The USB HID controller itself is write-only and cannot serve these; the DDC read is what powers this.) 
+- **`aorusctl dump`** — ⚠️ dump of the raw HID status blob still STALLs (the HID input report has no read-back). No longer needed for control; see [docs/protocol.md §5](docs/protocol.md).
 
 For first-time bring-up on a *different* panel:
 
@@ -120,7 +121,8 @@ Prior art this is built on: [kelvie/gbmonctl](https://github.com/kelvie/gbmonctl
 - [x] CLI (`set` / `list` / `props` / dump / dry-run)
 - [x] Deep-dive docs (`docs/`)
 - [x] **SwiftUI menu-bar app** (`AorusApp`) — sliders, PBP/PIP, KVM, picture modes, colour
-- [ ] True `get <prop>` reads — **blocked by hardware**: the CO49DQ HID controller is write-only; reads need cable-DDC (see docs/protocol.md §5)
+- [x] **Real reads over cable-DDC** (`DDCReader`) — brightness/contrast/volume/sharpness live values via `get` and in the app; verified live on the CO49DQ
+- [ ] Decode the remaining 2-arg vendor DDC reads (picture mode, PBP/PIP) for a fuller read-back
 - [ ] Handle alternate controller VID:PID if a different panel uses one
 
 ## Safety

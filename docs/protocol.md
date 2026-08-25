@@ -201,51 +201,77 @@ Verified live on the CO49DQ: `set brightness 50 / 30 / 70` all apply.
 
 ---
 
-## 5. Reads / `get` — the open problem
+## 5. Reads / `get` — now working, via cable-DDC
 
-**Status: resolved — reads are NOT supported over the HID path on the CO49DQ.**
+**Short version: `get` now works.** Real current-value reads are delivered by
+the **video-cable DDC** channel, not the USB HID controller (which is
+write-only). The app and CLI use `DDCReader`
+(`Sources/AorusCore/DDCReader.swift`) to fetch live brightness/contrast/etc.
 
-The reference tool **gbmonctl only ever writes**; it never reads a value back.
-Its own source carries an aspirational TODO:
+### 5.1 Why the HID path can never read
+
+The Realtek HID controller (0x0bda:0x1100) is **write-only over USB HID.**
+The reference tool gbmonctl never implements a read either (only a TODO):
 
 ```go
-// TODO: get current value and nicely transition ...
 // TODO: read a value if "v" not specified, I think the value is in the byte 0xa
-//       of the response if we do a read
 ```
 
-We tested this exhaustively on real hardware (`/tmp/read_sweep.swift`):
+We tested this exhaustively (`/tmp/read_sweep.swift`):
 
-- The read request is a DDC/CI **Get VCP Feature** (opcode `0x01` instead of the
-  write opcode `0x03`), with a reduced message length. A brightness read is
-  `51 82 01 10` (header `0x51`, length `0x82` = `0x81` + 1 cmd byte and **no**
-  value byte, opcode `0x01`, VCP `0x10`). For a vendor feature the DDC/CI
-  control is `0xE0` with a selector byte on the cable path.
-- **Every get-request write succeeds** at the USB level
-  (`IOHIDDeviceSetReport` returns SUCCESS), across all variants:
-  with/without checksum, length `0x82`/`0x81`, standard VCP `0x10`/`0x12`/`0x62`,
-  vendor `0xE0` + selector, and a plain write (which never acks either).
-- **Zero asynchronous input reports are ever pushed.** An
-  `IOHIDDeviceRegisterInputReportCallback` on a persistent 192-byte buffer
-  received nothing over 5s+ of runloop across every request.
-- A synchronous `IOHIDDeviceGetReport(kIOHIDReportTypeInput, 192)` **still
-  STALLs** (`0xE0005000`) even *after* a successful get-request write.
+- Sending the DDC/CI Get VCP request over HID (opcode `0x01`)
+  `51 82 01 10` **succeeds** at the USB level, every variant — but **zero async
+  input reports** are ever pushed, and a synchronous `IOHIDDeviceGetReport`
+  **STALLs** (`0xE0005000`) even after a successful get write.
+- Conclusion: the HID input report has no read-back. Vendor features (PBP/PIP,
+  KVM, picture modes) therefore have **no read over HID either**.
 
-**Conclusion:** the CO49DQ's Realtek controller is **write-only over the USB HID
-control interface**. It accepts control commands but does not serve status
-read-backs via the HID input report. This is consistent with every prior-art
-tool (none reads) and with the single-Input-collection descriptor.
+### 5.2 The working cable-DDC read (Apple Silicon)
 
-**The genuine read path is DDC/CI over the video cable** (the HDMI/DP/Type-C
-DDC I2C bus), which is a *different* transport entirely (e.g. `ddcutil` / MCCS
-`Get VCP Feature` over the display channel), not the USB HID interface we write
-through. That is the only route to current-value reads, and only works for
-**standard** VCP codes (brightness `0x10`, contrast `0x12`). Vendor features
-(PBP/PIP, KVM, picture modes) have no cable-DDC read-back on most panels either.
+On Apple Silicon the framebuffer I2C API (`IOFBGetI2CInterfaceCount` /
+`IOFBCopyI2CInterfaceForBus` / `IOI2CSendRequest`) exposes **no services**
+(verified live). The working path is the private `IOAVService` API:
 
-For the menu-bar app this means: **treat writes as authoritative**; track
-last-set values in the app and default sliders to known-safe values. Do not
-rely on `get` over HID (it cannot work).
+1. Iterate the I/O Registry for a service named `DCPAVServiceProxy` whose
+   `Location` is `External`, and create a `IOAVService` handle
+   (`IOAVServiceCreateWithService`).
+2. A Get VCP **read** request is a **single byte** — the VCP code. The `0x01`
+   Get opcode is implied by the 1-byte form (`Arm64DDC.read` sends `[command]`;
+   sending `[0x01, vcp]` makes the device return garbage/echo).
+3. I2C write payload:
+   `[0x80 | (send.count+1), send.count] + send + [checksum]`, checksum seeded
+   with `addr<<1` (0x6E) for the 1-byte form.
+4. Reply (11 bytes): `6e 88 02 00 <vcp> 00 00 maxHi maxLo curHi curLo ck`.
+   `max = reply[6]*256+reply[7]`, `current = reply[8]*256+reply[9]`.
+5. Retry until the reply checksum (seed `0x50`) validates, `reply[2]==0x02`
+   and `reply[3]==0x00`. Early reads are frequently stale; the clean valid
+   response usually appears within a few rounds.
+
+### 5.3 Verified readable VCP codes on the CO49DQ
+
+| VCP | Name | Read | Max | Notes |
+|-----|------|------|-----|-------|
+| 0x10 | Luminance | 75 | 100 | real brightness |
+| 0x12 | Contrast | 50 | 100 | real contrast |
+| 0x62 | Speaker Volume | 30 | 100 | |
+| 0x87 | Sharpness | 5 | 10 | |
+| 0x60 | Input Source | 16 | 3 | 16 = 0x10 Type-C |
+| 0x14 | Color Preset | 2 | 11 | |
+| 0xCA | OSD | 1 | 2 | |
+| 0xCC | OSD Language | 2 | 13 | index |
+| 0xD6 | Power Mode | 1 | 5 | 1 = on |
+| 0xB6 | Display Technology | 3 | 5 | |
+| 0xDF | VCP Version | 514 | – | 0x0202 = DDC/CI 2.2 |
+| 0xC9 | Firmware Level | 1 | – | |
+| 0xC8 | Controller ID | 9 | – | |
+
+Reads are stable across repeated calls (verified 3×: luminance 75/75/75,
+contrast 50/50/50, volume 30/30/30, sharpness 5/5/5). Unsupported via the
+single-byte form: Gamma 0x72, Hue 0x90, Color Saturation 0x8A, backlight
+variants, geometry sizes, LUT ops.
+
+For the menu-bar app: it seeds sliders from these real values and treats
+further writes as authoritative (no live polling between edits).
 
 ---
 
@@ -288,6 +314,6 @@ Windows OSD Sidekick issues.
 | 193 bytes ⇒ STALL; 192 bytes ⇒ OK | `write_variants.swift` live test | ✅ |
 | brightness write applies on hardware | `set brightness 50/30/70` on CO49DQ | ✅ |
 | Frame bytes match gbmonctl | byte-for-byte dry-run comparison | ✅ |
-| Status read-back works | NOT VERIFIED (open, see §5) | ⚠️ |
+| Status read-back works | `DDCReader` reads real luminance/contrast/volume over cable-DDC | ✅ |
 
 ```

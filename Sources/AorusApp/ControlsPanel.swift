@@ -39,9 +39,18 @@ struct ControlsPanel: View {
     @ViewBuilder
     private var connectionBadge: some View {
         if store.isConnected {
-            Label("Connected", systemImage: "circle.fill")
-                .font(.caption)
-                .foregroundStyle(.green)
+            HStack(spacing: 10) {
+                Button {
+                    store.refreshFromDDC()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .help("Re-read real values over cable-DDC")
+                Label("Connected", systemImage: "circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
         } else {
             Button {
                 store.connect()
