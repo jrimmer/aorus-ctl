@@ -156,8 +156,12 @@ public final class MonitorStore: ObservableObject {
                     for (sourceControl, sourceValue) in orderedSources {
                         do { try monitor.set(sourceControl, value: sourceValue) }
                         catch {
-                            Task { @MainActor in
-                                self?.statusMessage = "Write to \(sourceControl.label) failed"
+                            // Only a Sendable `String` is sent across the
+                            // isolation boundary; `self` stays weakly captured
+                            // on the main actor (Swift 6 data-race safety).
+                            let message = "Write to \(sourceControl.label) failed"
+                            Task { @MainActor [weak self, message] in
+                                self?.statusMessage = message
                             }
                         }
                     }
@@ -165,8 +169,9 @@ public final class MonitorStore: ObservableObject {
                 do {
                     try monitor.set(control, value: clamped)
                 } catch {
-                    Task { @MainActor in
-                        self?.statusMessage = "Write to \(control.label) failed"
+                    let message = "Write to \(control.label) failed"
+                    Task { @MainActor [weak self, message] in
+                        self?.statusMessage = message
                     }
                 }
             }
