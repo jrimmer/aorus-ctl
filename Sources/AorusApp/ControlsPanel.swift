@@ -430,11 +430,12 @@ private struct KeyHelpPopover: View {
             Text("Cycle PBP/PIP mode")
                 .font(.caption)
             keyCap("X")
-            Text("Swap the two PBP/PIP inputs")
+            Text("Swap the PBP/PIP inputs")
                 .font(.caption)
         }
         .padding(12)
-        .frame(width: 240, alignment: .leading)
+        // Let the popover hug its content instead of a fixed width.
+        .fixedSize()
     }
 
     /// Renders a ⌘⇧<key> cap row.
@@ -443,7 +444,6 @@ private struct KeyHelpPopover: View {
             cap("⌘")
             cap("⇧")
             cap(key)
-            Spacer()
         }
     }
 
