@@ -80,6 +80,25 @@ public enum MonitorControl: Equatable, Hashable, Sendable {
         }
     }
 
+    /// The standard MCCS VCP code for this control, if it is an
+    /// over-the-cable DDC/CI control. Controls that write via the vendor
+    /// 0x0eXX HID path (KVM, PBP/PIP, picture modes, colour, …) return nil.
+    ///
+    /// Standard VCP controls (brightness/contrast/volume/sharpness) MUST be
+    /// written over the video-cable DDC channel, NOT the USB HID controller —
+    /// the Realtek HID controller only applies vendor 0x0eXX commands and
+    /// ignores standard DDC opcodes sent through it (verified live on the
+    /// CO49DQ).
+    public var standardVCP: DisplayVCP? {
+        switch self {
+        case .brightness: return .luminance
+        case .contrast:   return .contrast
+        case .volume:     return .speakerVolume
+        case .sharpness:  return .sharpness
+        default:          return nil
+        }
+    }
+
     /// Human-readable label for CLI help / status output.
     public var label: String {
         switch self {

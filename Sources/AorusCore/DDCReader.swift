@@ -130,6 +130,12 @@ private extension Array where Element == UInt8 {
 /// Silicon, via the private IOAVService API. Requires an online external
 /// display; returns `nil` when the display is built-in or no DDC service is
 /// reachable.
+///
+/// Also performs **Set VCP Feature writes** (`write(_:value:)`) for standard
+/// VCP codes. Standard VCP writes (brightness/contrast/volume/sharpness) MUST
+/// go over this cable-DDC channel, NOT the USB HID controller — the Realtek HID
+/// controller only applies vendor 0x0eXX commands; standard DDC opcodes sent
+/// through HID are silently ignored on the CO49DQ (verified live).
 public struct DDCReader: @unchecked Sendable {
     private let service: IOAVService?
 
@@ -144,6 +150,46 @@ public struct DDCReader: @unchecked Sendable {
     /// unsupported.
     public func read(_ vcp: DisplayVCP) -> VCPReading? {
         readVCP(vcp.rawValue)
+    }
+
+    /// Writes `value` to a standard VCP feature via the MCCS Set VCP Feature
+    /// command (opcode 0x03). Returns true on I2C success.
+    @discardableResult
+    public func write(_ vcp: DisplayVCP, value: UInt16) -> Bool {
+        writeVCP(vcp.rawValue, value: value)
+    }
+
+    private func writeVCP(_ code: UInt8, value: UInt16) -> Bool {
+        guard let service else { return false }
+        let packet = DDCReader.setVCPPacket(code: code, value: value)
+        let count = packet.count
+        var mutablePacket = packet
+        return mutablePacket.withUnsafeMutableBytes { raw -> Bool in
+            _IOAVServiceWriteI2C(
+                service, UInt32(ddcSevenBitAddress), UInt32(ddcDataAddress),
+                raw.baseAddress, UInt32(count)
+            ) == KERN_SUCCESS
+        }
+    }
+
+    /// The MCCS Set VCP Feature write packet for a standard VCP code:
+    /// `[0x84, 0x03, code, valueHi, valueLo, checksum]`. Exposed for tests.
+    ///   * 0x84 = 0x80 | (0x03 + valueHi + valueLo + checksum = 5 msg bytes)
+    ///   * 0x03 = Set VCP Feature command
+    ///   * checksum seed = (0x37 << 1) ^ 0x51 = 0x6E ^ 0x51 = 0x3F
+    public static func setVCPPacket(code: UInt8, value: UInt16) -> [UInt8] {
+        var packet: [UInt8] = [
+            0x84, 0x03, code,
+            UInt8(value >> 8), UInt8(value & 0xff),
+        ]
+        packet.append(Self.writeChecksum(packet))
+        return packet
+    }
+
+    private static func writeChecksum(_ data: [UInt8]) -> UInt8 {
+        var value: UInt8 = (ddcSevenBitAddress << 1) ^ ddcDataAddress  // 0x3F
+        for byte in data { value ^= byte }
+        return value
     }
 
     /// Raw read-by-code variant.

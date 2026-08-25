@@ -250,7 +250,7 @@ On Apple Silicon the framebuffer I2C API (`IOFBGetI2CInterfaceCount` /
 ### 5.3 Verified readable VCP codes on the CO49DQ
 
 | VCP | Name | Read | Max | Notes |
-|-----|------|------|-----|-------|
+| ----- | ------ | ------ | ----- | ------- |
 | 0x10 | Luminance | 75 | 100 | real brightness |
 | 0x12 | Contrast | 50 | 100 | real contrast |
 | 0x62 | Speaker Volume | 30 | 100 | |
@@ -312,8 +312,10 @@ Windows OSD Sidekick issues.
 | Controller is 0x0bda:0x1100 | `ioreg -p IOUSB` + HID-plane enumeration | ✅ |
 | Report is 192 bytes, no report ID | Full 28-byte descriptor decode | ✅ |
 | 193 bytes ⇒ STALL; 192 bytes ⇒ OK | `write_variants.swift` live test | ✅ |
-| brightness write applies on hardware | `set brightness 50/30/70` on CO49DQ | ✅ |
+| **Brightness write applies** | `set brightness 35` → **cable-DDC write**, read-back 35 | ✅ via cable-DDC |
+| **HID brightness/contrast write applies** | `set brightness 20` via HID frame → read-back stays 75 | ❌ over HID |
 | Frame bytes match gbmonctl | byte-for-byte dry-run comparison | ✅ |
+| Standard VCP writes over HID ignored | `set contrast 80` via HID → read-back stays 50; DDC write 70 → 70 | ⚠️ HID ignored, DDC works |
 | Status read-back works | `DDCReader` reads real luminance/contrast/volume over cable-DDC | ✅ |
 
 ```

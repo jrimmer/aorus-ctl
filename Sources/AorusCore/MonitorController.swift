@@ -11,12 +11,18 @@ import Foundation
 
 public struct MonitorController: Sendable {
     public let connection: MonitorConnection
+    /// Cable-DDC handle for standard MCCS VCP controls (brightness/contrast/
+    /// volume/sharpness). These MUST be written over the video-cable DDC
+    /// channel; the USB HID controller ignores standard DDC opcodes.
+    let ddc: DDCReader?
 
-    public init(connection: MonitorConnection) {
+    public init(connection: MonitorConnection, ddc: DDCReader? = nil) {
         self.connection = connection
+        self.ddc = ddc
     }
 
-    /// Opens the first matching monitor control device. Throws if none found.
+    /// Opens the first matching monitor control device. Also opens the
+    /// cable-DDC channel so standard VCP controls can be read/written.
     public static func openFirst(
         vid: Int = defaultVendorID,
         pid: Int = defaultProductID
@@ -31,13 +37,30 @@ public struct MonitorController: Sendable {
         guard let conn = MonitorConnection(device: first) else {
             throw TransportError.openFailed(-1)
         }
-        return MonitorController(connection: conn)
+        return MonitorController(connection: conn, ddc: DDCReader())
     }
 
     /// Sets a monitor property to the given value (within its range).
+    ///
+    /// Standard VCP controls (brightness/contrast/volume/sharpness) are
+    /// written over the **cable-DDC** channel; vendor controls (KVM, PBP/PIP,
+    /// picture modes, colour, …) are written over the **USB HID** controller.
     public func set(_ control: MonitorControl, value: UInt16) throws {
+        if let vcp = control.standardVCP, let ddc {
+            guard ddc.write(vcp, value: value) else {
+                throw TransportError.reportWriteFailed(-1)
+            }
+            return
+        }
         let report = try ReportBuilder.buildReport(control: control, value: value)
         try connection.write(report: report)
+    }
+
+    /// Reads the current value of a standard VCP control over cable-DDC, or nil
+    /// if the control is not a standard VCP or the read fails.
+    public func read(_ control: MonitorControl) -> VCPReading? {
+        guard let vcp = control.standardVCP, let ddc else { return nil }
+        return ddc.read(vcp)
     }
 
     /// Reads the current 193-byte status report as hex bytes.

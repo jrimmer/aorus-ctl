@@ -153,32 +153,26 @@ func run(_ opts: Options) {
         }
 
     case "get":
-        // A real value read comes from the *video-cable DDC* channel, which the
-        // USB HID controller does not expose (it is write-only). `DDCReader`
-        // reads standard MCCS VCP codes over DDC on Apple Silicon.
+        // A real value read comes from the *video-cable DDC* channel. Standard
+        // VCP controls (brightness/contrast/volume/sharpness) are read over
+        // cable-DDC via the controller. Vendor features (PBP/PIP, KVM, picture
+        // modes) have no read-back.
         guard opts.args.count >= 1, let control = control(for: opts.args[0]) else {
             print("ERROR: `get` requires a known property. Run `aorusctl props` first.")
             return
         }
-        let vcp: DisplayVCP?
-        switch control {
-        case .brightness:   vcp = .luminance
-        case .contrast:     vcp = .contrast
-        case .volume:       vcp = .speakerVolume
-        case .sharpness:    vcp = .sharpness
-        default:            vcp = nil
-        }
-        guard let vcp, let reader = DDCReader() else {
-            print("ERROR: `get \(control.label)` is not readable via DDC on this display.")
-            print("  Cable-DDC reads are available for: brightness, contrast, volume, sharpness.")
-            print("  The USB HID controller is write-only, so vendor features (PBP/PIP, KVM,")
-            print("  picture modes) have no read-back. See docs/protocol.md §5.")
-            return
-        }
-        if let reading = reader.read(vcp) {
-            print("\(control.label): \(reading.current) / \(reading.maximum)")
-        } else {
-            print("ERROR: failed to read \(control.label) over DDC (unsupported or busy).")
+        do {
+            let controller = try MonitorController.openFirst()
+            if let reading = controller.read(control) {
+                print("\(control.label): \(reading.current) / \(reading.maximum)")
+            } else {
+                print("ERROR: `get \(control.label)` is not readable via DDC on this display.")
+                print("  Cable-DDC reads are available for: brightness, contrast, volume, sharpness.")
+                print("  The USB HID controller is write-only, so vendor features (PBP/PIP, KVM,")
+                print("  picture modes) have no read-back. See docs/protocol.md §5.")
+            }
+        } catch {
+            print("ERROR: \(error)")
         }
 
     case "dump":

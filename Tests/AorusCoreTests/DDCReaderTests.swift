@@ -63,4 +63,27 @@ final class DDCReaderTests: XCTestCase {
         reply[10] = reply.dropLast().reduce(0x50) { $0 ^ $1 }
         XCTAssertNil(VCPReading.parse(reply: reply))
     }
+
+    // MARK: Set VCP Feature write packet
+
+    /// Brightness = 50 must produce the exact MCCS Set VCP packet observed
+    /// working on the CO49DQ: `84 03 10 00 32 9A`.
+    /// (checksum seed = 0x37<<1 ^ 0x51 = 0x3F)
+    func testSetVCPPacketBrightness50() {
+        let packet = DDCReader.setVCPPacket(code: 0x10, value: 50)
+        XCTAssertEqual(packet, [0x84, 0x03, 0x10, 0x00, 0x32, 0x9A])
+    }
+
+    /// Contrast = 25: `84 03 12 00 19 B3` (checksum = seed 0x3F XORed over the
+    /// first five bytes).
+    func testSetVCPPacketContrast25() {
+        let packet = DDCReader.setVCPPacket(code: 0x12, value: 25)
+        XCTAssertEqual(packet, [0x84, 0x03, 0x12, 0x00, 0x19, 0xB3])
+    }
+
+    /// Brightness = 20: `84 03 10 00 14 BC`.
+    func testSetVCPPacketBrightness20() {
+        let packet = DDCReader.setVCPPacket(code: 0x10, value: 20)
+        XCTAssertEqual(packet, [0x84, 0x03, 0x10, 0x00, 0x14, 0xBC])
+    }
 }

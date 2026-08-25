@@ -77,8 +77,8 @@ Properties (ranges in parentheses):
 Status of the interfaces on the actual panel:
 
 - **`aorusctl list`** — ✅ confirmed: finds `0x0bda:0x1100 HID Device [Realtek]`.
-- **`aorusctl set <prop> <value>`** — ✅ **confirmed**: e.g. `set brightness 50` / `30` / `70` visibly apply on the CO49DQ. The USB HID write path is verified on real hardware.
-- **`aorusctl get <prop>`** — ✅ **confirmed**: reads the monitor's **real** current values over the video-cable **DDC** channel. On the CO49DQ: `get brightness` → `75 / 100`, `get contrast` → `50 / 100`, `get volume` → `30 / 100`, `get sharpness` → `5 / 10`. (The USB HID controller itself is write-only and cannot serve these; the DDC read is what powers this.) 
+- **`aorusctl set <prop> <value>`** — ✅ **confirmed**: `set brightness 45` → `45` read-back and visibly applies on the CO49DQ. Standard VCP controls (brightness/contrast/volume/sharpness) are written over the **video-cable DDC** channel; vendor controls (KVM, PBP/PIP, picture modes, colour) go over the **USB HID** controller.
+- **`aorusctl get <prop>`** — ✅ **confirmed**: reads the monitor's **real** current values over the video-cable **DDC** channel. On the CO49DQ: `get brightness` → `75 / 100`, `get contrast` → `50 / 100`, `get volume` → `30 / 100`, `get sharpness` → `5 / 10`. (The USB HID controller itself is write-only and cannot serve these; the DDC read is what powers this.)
 - **`aorusctl dump`** — ⚠️ dump of the raw HID status blob still STALLs (the HID input report has no read-back). No longer needed for control; see [docs/protocol.md §5](docs/protocol.md).
 
 For first-time bring-up on a *different* panel:
