@@ -19,7 +19,7 @@ table itself is recovered from community RE — primarily
 > **individual opcodes and their ranges are not guaranteed to be identical**
 > across models. On a new panel, spot-check each control you care about
 > (`aorusctl --dry-run` then apply) before relying on a row. Rows sourced only
-> from other SKUs are marked below. See [README model compatibility](../README.md#model-compatibility--whats-tested-vs-whats-likely).
+> from other SKUs are marked below. See [model compatibility](compatibility.md).
 
 ---
 

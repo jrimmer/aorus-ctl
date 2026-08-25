@@ -13,7 +13,7 @@ status-report question, and the vendor-prefix encoding).
 > it is *likely* to apply to other panels, **but that is not guaranteed**. The
 > frame transport carries over for any controller with the same VID/PID; the
 > per-opcode command table varies by panel, so treat individual rows as
-> to-be-verified on each new model. See [README model compatibility](../README.md#model-compatibility--whats-tested-vs-whats-likely).
+> to-be-verified on each new model. See [model compatibility](compatibility.md).
 
 Companion files:
 

@@ -20,7 +20,7 @@ The rest are corroboration / alternative-language ports.
 > (`0x0bda:0x1100`) is what makes the *transport* portable; **opcodes and ranges
 > vary per model**, so treat any row sourced only from another SKU as
 > unverified on your panel until you spot-check it. See [README model
-> compatibility](../README.md#model-compatibility--whats-tested-vs-whats-likely).
+> compatibility](compatibility.md).
 
 ---
 
