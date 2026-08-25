@@ -345,9 +345,10 @@ private struct PictureSection: View {
         )
     }
 
-    /// A toggle row whose label is left-indented to match the dropdown label
-    /// column (aligning with the slider labels) and whose switch aligns on the
-    /// right with the dropdown pickers.
+    /// A toggle row whose label sits left (flush with the dropdown labels) and
+    /// whose switch aligns its LEFT edge with the left edge of the dropdown
+    /// picker boxes — so the switch sits slightly inward rather than flush
+    /// against the far edge.
     private func toggleRow(label: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Text(label)
@@ -355,7 +356,7 @@ private struct PictureSection: View {
             Toggle("", isOn: isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
-                .frame(maxWidth: 170, alignment: .trailing)
+                .frame(width: 170, alignment: .leading)
         }
         .controlSize(.small)
     }
@@ -426,7 +427,7 @@ private struct KeyHelpPopover: View {
             Text("Keyboard shortcuts")
                 .font(.caption.weight(.semibold))
             keyCap("P")
-            Text("Cycle PBP/PIP mode (Off → PIP → PBP → Off)")
+            Text("Cycle PBP/PIP mode")
                 .font(.caption)
             keyCap("X")
             Text("Swap the two PBP/PIP inputs")
