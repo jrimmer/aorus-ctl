@@ -27,6 +27,8 @@ Grab the latest **`.dmg`** from the **Releases** page:
 
 > If macOS warns about an unidentified developer the first time you open it: right-click (or Control-click) the app, choose **Open**, and confirm. Signed + notarized builds open cleanly, so this should be rare.
 
+**Signed & notarized:** every release is signed with a Developer ID certificate and **notarized by Apple**. You can run it straight from the DMG — no right-click-to-open, no security override, no extra steps needed on your Mac.
+
 ## Using it
 
 - **Sliders** — brightness, contrast, volume, sharpness. Changes apply as you drag.
