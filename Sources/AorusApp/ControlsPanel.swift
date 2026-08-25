@@ -203,26 +203,18 @@ private struct InputSection: View {
 /// PBP / PIP multi-picture configuration.
 private struct PbpSection: View {
     @EnvironmentObject var store: MonitorStore
-    @State private var showKeyHelp = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 SectionTitle("PBP / PIP")
-                // Tooltip-style help: a circled "?" that pops over the key
-                // controls.
-                Button {
-                    showKeyHelp.toggle()
-                } label: {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .help("Keyboard shortcuts")
-                .popover(isPresented: $showKeyHelp, arrowEdge: .bottom) {
-                    KeyHelpPopover()
-                }
+                // A "?" glyph signals a hover tooltip; the tooltip itself is
+                // presented via .help() (AppKit-anchored, reliable inside the
+                // MenuBarExtra window, unlike a .popover which gets centered).
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .help("\u{2318}\u{21e7}P  Cycle PBP/PIP mode\n\u{2318}\u{21e7}X  Swap the PBP/PIP inputs")
             }
 
             MenuPicker<PresetValue.PbpPipMode>(
@@ -417,41 +409,6 @@ private struct SectionTitle: View {
             .font(.system(.caption2, design: .rounded).weight(.semibold))
             .foregroundStyle(.secondary)
             .padding(.bottom, 2)
-    }
-}
-
-/// Popover listing the system-wide keyboard shortcuts.
-private struct KeyHelpPopover: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Keyboard shortcuts")
-                .font(.caption.weight(.semibold))
-            shortcutRow(keys: ["⌘", "⇧", "P"], label: "Cycle PBP/PIP mode")
-            shortcutRow(keys: ["⌘", "⇧", "X"], label: "Swap the PBP/PIP inputs")
-        }
-        .padding(12)
-        // Let the popover hug its content instead of a fixed width.
-        .fixedSize()
-    }
-
-    /// A single shortcut: description first, key caps trailing on the right
-    /// (like a standard menu item's keyboard shortcut).
-    private func shortcutRow(keys: [String], label: String) -> some View {
-        HStack(spacing: 3) {
-            Text(label)
-                .font(.caption)
-            Spacer(minLength: 12)
-            ForEach(keys, id: \.self) { cap($0) }
-        }
-    }
-
-    private func cap(_ text: String) -> some View {
-        Text(text)
-            .font(.system(.caption2, design: .rounded).weight(.semibold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(RoundedRectangle(cornerRadius: 4)
-                .fill(Color.gray.opacity(0.22)))
     }
 }
 
