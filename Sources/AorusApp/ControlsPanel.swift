@@ -194,8 +194,27 @@ private struct PbpSection: View {
                         (.typeC, "USB-C"),
                     ]
                 )
+
+                // Swap the two sources: in PBP that exchanges the left/right
+                // sides; in PIP it exchanges the primary and secondary inputs.
+                Button {
+                    swapSources()
+                } label: {
+                    Label("Swap sides", systemImage: "arrow.left.arrow.right")
+                }
+                .buttonStyle(.borderless)
+                .help("Swap the two PBP/PIP sources")
             }
         }
+    }
+
+    /// Exchanges the primary (`source`) and secondary (`pbpPipSource`) inputs.
+    private func swapSources() {
+        let primary = store.values[.source] ?? PresetValue.Input.typeC.rawValue
+        let secondary = store.values[.pbpPipSource] ?? PresetValue.Input.hdmi1.rawValue
+        // Write the swapped values back to both controls.
+        store.set(.source, value: secondary)
+        store.set(.pbpPipSource, value: primary)
     }
 }
 
