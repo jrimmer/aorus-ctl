@@ -110,43 +110,45 @@ Byte layout within the 192-byte payload (offsets into the report):
 | `0x40` | 1 | `51` | message marker |
 | `0x41` | 1 | `0x81 + msgLen` | message length (see below) |
 | `0x42` | 1 | `03` | write opcode |
-| `0x43` | 1–2 | command bytes | `0x10` / `0x12` / `0x87`… (single) or `0x0e XX` (vendor) |
-| … | 1 | value | single value byte (`0x00`–`0xff`) |
-| … | 1 | checksum | nibble-wise XOR (below) |
+| `0x43` | 1–2 | command bytes | `0x10` / `0x12` / `0x87`… (single) or `0xe0 XX` (vendor) |
+| … | 2 | value | 2-byte big-endian value (`0x0000`–`0xffff`) |
+| … | — | — | **no checksum byte** — trailing bytes are zero (gbmonctl) |
 
-The **message length byte** at `0x41` encodes `0x81 + (command bytes + value byte)`
-for writes. Decode carefully:
+The **message length byte** at `0x41` encodes `0x81 + (command bytes + value
+bytes)` for writes. Decode carefully:
 
 ```text
 msgLen = lenByte - 0x81
 ```
 
-e.g. brightness (single command byte + 1 value) ⇒ `0x81 + 2 = 0x83`;
-a vendor command (`0x0e XX` = 2 bytes + 1 value) ⇒ `0x81 + 3 = 0x84`.
+e.g. brightness (single command byte + 2 value bytes) ⇒ `0x81 + 3 = 0x84`;
+a vendor command (`0xe0 XX` = 2 bytes + 2 value bytes) ⇒ `0x81 + 4 = 0x85`.
 
-### 3.1 Checksum algorithm
-
-Matches gbmonctl exactly:
-
-```text
-low  nibble = XOR of every message byte's low nibble, seeded with 0x6
-high nibble = (last message byte XOR 0xc0) & 0xf0
-checksum    = low + high
-```
-
-`msg` is the region from the first command byte (`0x43`) through the value byte
-(not the checksum byte). The checksum is the byte immediately after the value.
+> **Two encoding gotchas (both verified on the CO49DQ):**
+> 1. The vendor prefix in the HID frame is **`0xe0`**, not the `0x0e` used in
+>    ddcutil-style community tables — using `0x0e` makes the panel silently
+>    ignore the write.
+> 2. The value is a **2-byte big-endian** uint16, and **no checksum byte** is
+>    appended (gbmonctl leaves the trailing report bytes zero).
 
 ### 3.2 Worked example — brightness 50
 
 ```text
-51 83 03 10 32 f4
-└──┘ └─┘ └─┘ └─┘ └─┘
-marker len op cmd val cksum
+51 84 03 10 00 32
+└──┘ └─┘ └─┘ └──┘ └─┘
+marker len op cmd val
 ```
 
-`0x10` = DDC brightness command, `0x32` = 50, `0xf4` = checksum. This specific
-frame was verified byte-for-byte against gbmonctl's known-good output.
+`0x10` = DDC brightness command, `0x0032` = 50 (2-byte BE), no checksum. This
+matches gbmonctl's known-good output exactly.
+
+For a vendor control, e.g. PBP mode 2 (`0xe00e`):
+
+```text
+51 85 03 e0 0e 00 02
+└──┘ └─┘ └─┘ └────┘ └┘
+marker len op cmd val
+```
 
 ---
 

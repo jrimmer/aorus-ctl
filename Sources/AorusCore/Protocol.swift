@@ -55,28 +55,28 @@ public enum MonitorControl: Equatable, Hashable, Sendable {
         case .contrast:   return 0x0012
         case .volume:     return 0x0062
         case .sharpness:  return 0x0087
-        case .blackEqualizer: return 0x0e00
-        case .colourMode:     return 0x0e03
-        case .rgbRed:         return 0x0e04
-        case .rgbGreen:       return 0x0e05
-        case .rgbBlue:        return 0x0e06
-        case .gamma:          return 0x0e07
-        case .vibrance:       return 0x0e08
-        case .overdrive:      return 0x0e09
-        case .lowBlueLight:   return 0x0e0b
-        case .freeSync:       return 0x0e0c
-        case .pbpPipMode:     return 0x0e0e
-        case .pbpPipSource:   return 0x0e0f
-        case .pbpPipSwitch:   return 0x0e10
-        case .pipSize:        return 0x0e14
-        case .pipLocation:    return 0x0e15
-        case .pipAudioSwitch: return 0x0e13
-        case .pictureMode:    return 0x0e2c
-        case .source:         return 0x0e2d
-        case .audioInput:     return 0x0e2e
-        case .osdDisplayTime: return 0x0e30
-        case .ledIndicator:   return 0x0e31
-        case .kvmSwitch:      return 0x0e69
+        case .blackEqualizer: return 0xe000
+        case .colourMode:     return 0xe003
+        case .rgbRed:         return 0xe004
+        case .rgbGreen:       return 0xe005
+        case .rgbBlue:        return 0xe006
+        case .gamma:          return 0xe007
+        case .vibrance:       return 0xe008
+        case .overdrive:      return 0xe009
+        case .lowBlueLight:   return 0xe00b
+        case .freeSync:       return 0xe00c
+        case .pbpPipMode:     return 0xe00e
+        case .pbpPipSource:   return 0xe00f
+        case .pbpPipSwitch:   return 0xe010
+        case .pipSize:        return 0xe014
+        case .pipLocation:    return 0xe015
+        case .pipAudioSwitch: return 0xe013
+        case .pictureMode:    return 0xe02c
+        case .source:         return 0xe02d
+        case .audioInput:     return 0xe02e
+        case .osdDisplayTime: return 0xe030
+        case .ledIndicator:   return 0xe031
+        case .kvmSwitch:      return 0xe069
         }
     }
 

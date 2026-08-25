@@ -36,6 +36,15 @@ public struct ReportBuilder {
     public static let reportLength = 193
 
     /// Builds the full 193-byte report for writing `value` to `control`.
+    ///
+    /// Exactly mirrors kelvie/gbmonctl's proven frame construction:
+    ///   * `buf[0]` report id 0, `buf[1..2]` 0x40 0xc6, `buf[7..11]` 20 00 6e 00 80
+    ///   * at payload 0x40: `0x51`, `0x81 + len(msg)`, `0x03` (write opcode)
+    ///   * `msg` = command bytes (1 for standard DDC 0x10/0x12/0x87, 2 for
+    ///     vendor 0xe0XX) followed by the value as a **2-byte big-endian**
+    ///     uint16 — gbmonctl always emits the value as two bytes.
+    ///   * gbmonctl does **not** append a checksum byte; the trailing bytes of
+    ///     the 192-byte report are left zero. We replicate that behaviour.
     public static func buildReport(control: MonitorControl, value: UInt16) throws -> [UInt8] {
         guard control.range.contains(value) else {
             throw FrameError.valueOutOfRange(control: control, requested: value, range: control.range)
@@ -58,8 +67,8 @@ public struct ReportBuilder {
         let base = 1 + 0x40
         report[base] = 0x51
 
-        // Determine command bytes: single-byte-ish controls are a single byte,
-        // vendor controls (0x0e XX) are two bytes.
+        // Command bytes: single byte for standard DDC (0x10/0x12/0x87), two
+        // bytes for vendor 0xe0XX.
         let command = control.commandWord
         let commandBytes: [UInt8]
         if command > 0xff {
@@ -68,59 +77,23 @@ public struct ReportBuilder {
             commandBytes = [UInt8(command & 0xff)]
         }
 
-        // Message length byte = 0x81 + commandBytes.count + value bytes(1).
-        // (gbmonctl uses 0x81 + len for writes; the 0x83/0x84 sequence seen in
-        //  pcaps is a separate commit handshake the proven driver omits.)
-        report[base + 1] = 0x81 + UInt8(commandBytes.count + 1)
+        // Message = command bytes + 2-byte big-endian value (gbmonctl always
+        // emits value as a uint16).
+        let valueBytes: [UInt8] = [UInt8(value >> 8), UInt8(value & 0xff)]
+        let msgLen = commandBytes.count + valueBytes.count
+
+        // Message length byte = 0x81 + len(msg).
+        report[base + 1] = 0x81 + UInt8(msgLen)
         report[base + 2] = 0x03 // write opcode
 
-        // Command bytes.
         for (idx, byte) in commandBytes.enumerated() {
             report[base + 3 + idx] = byte
         }
-
-        // Value byte.
-        report[base + 3 + commandBytes.count] = UInt8(value & 0xff)
-
-        // Checksum byte follows the value.
-        let checksumIndex = base + 3 + commandBytes.count + 1
-        report[checksumIndex] = checksum(for: report)
-        return report
-    }
-
-    /// Computes the protocol checksum.
-    ///
-    /// Mirrors gbmonctl's exact logic:
-    ///   low  nibble = XOR of every byte's low nibble, starting at 0x6
-    ///   high nibble = (last byte XOR 0xc0) high nibble
-    private static func checksum(for report: [UInt8]) -> UInt8 {
-        // The message part here is the region [0x43...checksum of the payload],
-        // i.e. everything from the first command byte up to (not including) the
-        // checksum byte. gbmonctl computes it over the whole `msg` (command +
-        // value) which it placed at payload[0x43..]. We replicate by sweeping
-        // the command+value region of the payload.
-        // Payload offset of first command byte is 0x43.
-        let msgStart = 1 + 0x43
-        // length of msg = checksumIndex - msgStart (we locate value by scanning).
-        guard report.count >= 1 + 0x43 else { return 0 }
-
-        // Find the checksum byte boundary: it sits immediately after the
-        // value byte. The message length byte at payload[0x41] encodes
-        // 0x81 + (command bytes + value byte). Decode accordingly.
-        let lenByte = Int(report[1 + 0x41])
-        let msgLen = lenByte - 0x81 // command bytes + value byte
-        let end = msgStart + msgLen // exclusive; the checksum is here
-
-        var sum: UInt8 = 0x6
-        if end > 1 + 0x43 {
-            for idx in (1 + 0x43)..<min(end, report.count) {
-                sum ^= report[idx]
-            }
+        for (idx, byte) in valueBytes.enumerated() {
+            report[base + 3 + commandBytes.count + idx] = byte
         }
-        sum &= 0x0f
 
-        let lastMsgByte = report[msgStart + msgLen - 1]
-        let highNibble = (lastMsgByte ^ 0xc0) & 0xf0
-        return sum + highNibble
+        // No checksum byte — gbmonctl leaves the remaining bytes zero.
+        return report
     }
 }

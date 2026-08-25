@@ -11,11 +11,11 @@ struct ControlsPanel: View {
             header
 
             if store.isConnected {
-                // The sections are a fixed, known set, so we let them size to
-                // their content (the menu-bar window hugs the natural height,
-                // avoiding the empty-gap from a ScrollView's infinite ideal
-                // height). Bound above by available height so it never exceeds
-                // the screen.
+                // The sections are a fixed, known set. We leave them as a
+                // plain VStack (not a ScrollView — which has no intrinsic
+                // height and collapses the window) so the MenuBarExtra(.window)
+                // hugs the panel's natural content height exactly, with no top
+                // gap and no empty space below.
                 VStack(alignment: .leading, spacing: 16) {
                     DisplaySection()
                     InputSection()
@@ -24,7 +24,6 @@ struct ControlsPanel: View {
                     ColorSection()
                 }
                 .padding(.vertical, 4)
-                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(14)
