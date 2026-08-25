@@ -1,11 +1,26 @@
 # Prior Art — everyone who has decoded this protocol
 
+**Thank you** to the community reverse engineers whose public work made this
+project possible — especially **kelvie** ([gbmonctl], the OSD Sidekick reversing
+gist), **ayufan** ([gigabyte-m32u-ddcctl], the command table), and everyone who
+ported the protocol to other languages or platforms. `aorus-ctl` is a native
+macOS re-implementation of the protocol *they* decoded; none of it would exist
+without them.
+
 This project does not reinvent the wheel. Everything here builds on years of
 community reverse engineering of Gigabyte's Realtek-HID monitor control. This
 file catalogs the known projects, what each one **proved**, and how to use it.
 
 Order matters: read `gbmonctl` + the reversing gist first, then the M32U table.
 The rest are corroboration / alternative-language ports.
+
+> **Scope / compatibility.** The projects below were tested across a spread of
+> Gigabyte panels (M27Q / M32U / M32Q / M32QC / M28UC); the CO49DQ findings in
+> §6 are this project's, verified on that one panel. The **controller**
+> (`0x0bda:0x1100`) is what makes the *transport* portable; **opcodes and ranges
+> vary per model**, so treat any row sourced only from another SKU as
+> unverified on your panel until you spot-check it. See [README model
+> compatibility](../README.md#model-compatibility--whats-tested-vs-whats-likely).
 
 ---
 

@@ -3,8 +3,17 @@
 Reverse-engineering notes for controlling **Gigabyte / AORUS monitors** over USB
 HID. This is the technical writeup behind `aorus-ctl`. It documents the device,
 the report descriptor, the exact frame that must be sent, the command table,
-and the hard-won on-hardware findings (report size, the USB STALL, and the
-status-report question).
+and the hard-won on-hardware findings (report size, the USB STALL, the
+status-report question, and the vendor-prefix encoding).
+
+> **Scope / compatibility.** Every protocol finding here was **verified live on
+> an AORUS CO49DQ**. The underlying vendor protocol is shared by a family of
+> Gigabyte monitors driven by the same Realtek HID controller (`0x0bda:0x1100`)
+> — e.g. the M27Q / M32U / M32Q / M32QC / M28UC used by the prior-art tools — so
+> it is *likely* to apply to other panels, **but that is not guaranteed**. The
+> frame transport carries over for any controller with the same VID/PID; the
+> per-opcode command table varies by panel, so treat individual rows as
+> to-be-verified on each new model. See [README model compatibility](../README.md#model-compatibility--whats-tested-vs-whats-likely).
 
 Companion files:
 

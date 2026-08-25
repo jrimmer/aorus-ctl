@@ -36,6 +36,17 @@ struct ControlsPanel: View {
                 .font(.headline)
             Spacer()
             connectionBadge
+
+            // Quit the menu-bar app.
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Image(systemName: "power")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .help("Quit Aorus")
+            .foregroundStyle(.secondary)
         }
     }
 

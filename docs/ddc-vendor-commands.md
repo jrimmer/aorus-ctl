@@ -12,6 +12,15 @@ table itself is recovered from community RE — primarily
 `kelvie/gbmonctl` and the OSD Sidekick reversing gist (see
 [docs/prior-art.md](./prior-art.md)).
 
+> **Scope / compatibility.** The command encoding (`0xe0` vendor prefix, 2-byte
+> value, no checksum) was **verified live on an AORUS CO49DQ**. The same Realtek
+> HID controller (`0x0bda:0x1100`) drives a family of Gigabyte monitors (M27Q /
+> M32U / M32Q / M32QC / M28UC), so the *transport* applies broadly — but
+> **individual opcodes and their ranges are not guaranteed to be identical**
+> across models. On a new panel, spot-check each control you care about
+> (`aorusctl --dry-run` then apply) before relying on a row. Rows sourced only
+> from other SKUs are marked below. See [README model compatibility](../README.md#model-compatibility--whats-tested-vs-whats-likely).
+
 ---
 
 ## Standard DDC/CI (single command byte + value)
