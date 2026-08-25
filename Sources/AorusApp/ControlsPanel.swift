@@ -31,11 +31,37 @@ struct ControlsPanel: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 12) {
             Label("Aorus", systemImage: "display")
                 .font(.headline)
+
+            if store.isConnected {
+                // Connected indicator sits right next to the monitor title;
+                // Refresh to its right, then a spacer pushes Quit to the edge.
+                Label("Connected", systemImage: "circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                    .labelStyle(.titleAndIcon)
+                Button {
+                    store.refreshFromDDC()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .help("Re-read real values over cable-DDC")
+            }
+
             Spacer()
-            connectionBadge
+
+            if !store.isConnected {
+                Button {
+                    store.connect()
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+            }
 
             // Quit the menu-bar app.
             Button {
@@ -47,32 +73,6 @@ struct ControlsPanel: View {
             .buttonStyle(.borderless)
             .help("Quit Aorus")
             .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private var connectionBadge: some View {
-        if store.isConnected {
-            HStack(spacing: 10) {
-                Button {
-                    store.refreshFromDDC()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .help("Re-read real values over cable-DDC")
-                Label("Connected", systemImage: "circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-            }
-        } else {
-            Button {
-                store.connect()
-            } label: {
-                Label("Retry", systemImage: "arrow.clockwise")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderless)
         }
     }
 }
