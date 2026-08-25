@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AorusCore
 
 /// The menu-bar dropdown panel. Top to bottom:
@@ -122,11 +123,50 @@ private struct SliderRow: View {
                 .foregroundStyle(.secondary)
             Text(label)
                 .frame(width: 70, alignment: .leading)
-            Slider(value: binding, in: 0...100, step: 1)
+            NativeSlider(value: binding)
             Text("\(store.values[control] ?? 0)")
                 .font(.system(.caption, design: .monospaced))
                 .frame(width: 26, alignment: .trailing)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// A native AppKit `NSSlider` wrapped for SwiftUI. Shows 11 tick marks (0-100 in
+/// 10-unit "10 pt" stops) while still allowing micro-adjustment: tick marks are
+/// visual only, so the value can land anywhere in the range (stepped by the
+/// caller).
+private struct NativeSlider: NSViewRepresentable {
+    @Binding var value: Double
+
+    func makeNSView(context: Context) -> NSSlider {
+        let slider = NSSlider(
+            value: value, minValue: 0, maxValue: 100,
+            target: context.coordinator, action: #selector(Coordinator.valueChanged(_:))
+        )
+        slider.isContinuous = true
+        slider.numberOfTickMarks = 11
+        slider.allowsTickMarkValuesOnly = false
+        slider.tickMarkPosition = .below
+        slider.controlSize = .small
+        return slider
+    }
+
+    func updateNSView(_ slider: NSSlider, context: Context) {
+        if slider.doubleValue != value {
+            slider.doubleValue = value
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(value: $value) }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private let value: Binding<Double>
+        init(value: Binding<Double>) { self.value = value }
+
+        @objc func valueChanged(_ sender: NSSlider) {
+            value.wrappedValue = sender.doubleValue
         }
     }
 }
@@ -212,13 +252,13 @@ private struct PbpSection: View {
                 // Switch swaps the two PBP/PIP inputs via the native vendor
                 // swap opcode (0xe0 0x10 = 1), which exchanges the physical
                 // PBP sides / PIP primary-secondary inputs without re-assigning
-                // the source values. It's a full-width action button below the
+                // the source values. It's a centred action button below the
                 // sources, distinct from the dropdowns.
                 Button {
                     store.set(.pbpPipSwitch, value: 1)
                 } label: {
                     Label("Switch inputs", systemImage: "arrow.left.arrow.right")
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .buttonStyle(.borderless)
                 .padding(.vertical, 2)
@@ -292,13 +332,13 @@ private struct PictureSection: View {
         )
     }
 
-    /// A toggle row whose switch aligns on the right with the dropdown picker
-    /// column (110pt label column, then a right-aligned switch), so FreeSync and
-    /// Low blue light line up with the Mode dropdown.
+    /// A toggle row whose label is left-indented to match the dropdown label
+    /// column (aligning with the slider labels) and whose switch aligns on the
+    /// right with the dropdown pickers.
     private func toggleRow(label: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Text(label)
-                .frame(width: 110, alignment: .leading)
+                .padding(.leading, panelLabelIndent)
             Spacer()
             Toggle("", isOn: isOn)
                 .labelsHidden()
@@ -367,6 +407,10 @@ private struct SectionTitle: View {
     }
 }
 
+/// Left indent matching the slider label column (icon 18pt + 8pt gap) so
+/// dropdown and toggle labels align with the slider labels.
+private let panelLabelIndent: CGFloat = 26
+
 /// A picker fed by raw `UInt16` values, labelled and bound to a monitor control.
 private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 {
     let label: String
@@ -380,7 +424,7 @@ private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 
         let current = store.values[key] ?? control.range.lowerBound
         HStack {
             Text(label)
-                .frame(width: 110, alignment: .leading)
+                .padding(.leading, panelLabelIndent)
             Spacer()
             Picker("", selection: Binding<UInt16>(
                 get: { current },
@@ -391,7 +435,7 @@ private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 
                 }
             }
             .labelsHidden()
-            .frame(maxWidth: 170)
+            .frame(maxWidth: 170, alignment: .trailing)
         }
         .controlSize(.small)
     }
