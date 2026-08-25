@@ -3,3 +3,9 @@
 DerivedData/
 *.xcodeproj
 .DS_Store
+
+# Release build artifacts
+dist/
+
+# Local release secrets (never commit)
+.env.release

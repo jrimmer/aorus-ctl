@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 1.0.0). Defaults to the latest tag."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-14        # Apple Silicon runner
+    env:
+      CERT_B64: ${{ secrets.DEVELOPER_ID_CERT }}
+      CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+      DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+      ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_API_KEY_B64: ${{ secrets.ASC_API_KEY }}
+      KEYCHAIN: release-signing
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Install Developer ID certificate
+        run: |
+          if [[ -z "$CERT_B64" ]]; then
+            echo "No DEVELOPER_ID_CERT secret — skipping signing (unsigned build)."
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/$KEYCHAIN.keychain-db"
+          security create-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$CERT_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$CERT_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Determine version
+        id: version
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ -n "$MANUAL_VERSION" ]]; then
+            echo "VERSION=$MANUAL_VERSION" >> "$GITHUB_ENV"
+            echo "RELEASE_TAG=v$MANUAL_VERSION" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+            echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build, sign, notarize, and package DMG
+        run: |
+          if [[ -n "$ASC_API_KEY_B64" ]]; then
+            echo "$ASC_API_KEY_B64" | base64 --decode > "$RUNNER_TEMP/asc_key.p8"
+            export ASC_API_KEY_PATH="$RUNNER_TEMP/asc_key.p8"
+          fi
+          ./Scripts/build-release.sh --distribute
+
+      - name: Attach DMG to GitHub Release
+        uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8 # v2.0.9
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          draft: false
+          generate_release_notes: true
+          files: dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Aorus is NOT sandboxed: it must talk to the Realtek HID controller (IOKit)
+  and the private IOAVService DDC path directly, both of which are blocked by
+  the App Sandbox. Under the hardened runtime these are the only keys needed
+  for a standalone, statically-linked menu-bar app (no JIT, no external
+  dylibs, no disable-library-validation required).
+-->
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <false/>
+</dict>
+</plist>
