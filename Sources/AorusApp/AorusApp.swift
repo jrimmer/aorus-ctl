@@ -15,6 +15,13 @@ import AorusCore
 struct AorusApp: App {
     @StateObject private var store = MonitorStore()
 
+    init() {
+        // The default macOS help-tag delay (~0.5-1s) feels sluggish for toggle
+        // hints. Shorten it so the `.help()` tooltip appears promptly (~0.15s).
+        // NSInitialToolTipDelay is in milliseconds and is app-wide.
+        UserDefaults.standard.set(150, forKey: "NSInitialToolTipDelay")
+    }
+
     var body: some Scene {
         MenuBarExtra("Aorus", systemImage: "display") {
             ControlsPanel()
