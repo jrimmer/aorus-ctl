@@ -184,33 +184,45 @@ private struct PbpSection: View {
             )
 
             if (store.values[.pbpPipMode] ?? 0) != 0 {
-                // The two sources (primary and Second) sit side by side with the
-                // Switch button between them, all on one line. Switch uses the
-                // native vendor swap opcode (0xe0 0x10 = 1), which exchanges the
-                // physical PBP sides / PIP primary-secondary inputs without
-                // re-assigning the source values.
-                HStack(spacing: 10) {
-                    CompactSourcePicker(
-                        label: "Source",
-                        control: .source,
-                        key: .source
-                    )
-                    Spacer(minLength: 4)
-                    Button {
-                        store.set(.pbpPipSwitch, value: 1)
-                    } label: {
-                        Label("Switch", systemImage: "arrow.left.arrow.right")
-                            .labelStyle(.titleOnly)
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Swap the two PBP/PIP inputs at the monitor")
-                    Spacer(minLength: 4)
-                    CompactSourcePicker(
-                        label: "Second",
-                        control: .pbpPipSource,
-                        key: .pbpPipSource
-                    )
+                // The two sources are full-width dropdown rows (label on the
+                // left, picker on the right), matching the rest of the panel.
+                MenuPicker<PresetValue.Input>(
+                    label: "Source",
+                    control: .source,
+                    key: .source,
+                    options: [
+                        (.hdmi1, "HDMI 1"),
+                        (.hdmi2, "HDMI 2"),
+                        (.dp, "DisplayPort"),
+                        (.typeC, "USB-C"),
+                    ]
+                )
+                MenuPicker<PresetValue.Input>(
+                    label: "Second source",
+                    control: .pbpPipSource,
+                    key: .pbpPipSource,
+                    options: [
+                        (.hdmi1, "HDMI 1"),
+                        (.hdmi2, "HDMI 2"),
+                        (.dp, "DisplayPort"),
+                        (.typeC, "USB-C"),
+                    ]
+                )
+
+                // Switch swaps the two PBP/PIP inputs via the native vendor
+                // swap opcode (0xe0 0x10 = 1), which exchanges the physical
+                // PBP sides / PIP primary-secondary inputs without re-assigning
+                // the source values. It's a full-width action button below the
+                // sources, distinct from the dropdowns.
+                Button {
+                    store.set(.pbpPipSwitch, value: 1)
+                } label: {
+                    Label("Switch inputs", systemImage: "arrow.left.arrow.right")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderless)
+                .padding(.vertical, 2)
+                .help("Swap the two PBP/PIP inputs at the monitor")
             }
 
             if (store.values[.pbpPipMode] ?? 0) == 1 {
@@ -385,41 +397,3 @@ private struct MenuPicker<E: RawRepresentable>: View where E.RawValue == UInt16 
     }
 }
 
-/// A compact input-source picker (label above a narrow Picker) used in the
-/// PBP/PIP horizontal source row, where two source dropdowns share one line
-/// with the Switch button between them.
-private struct CompactSourcePicker: View {
-    let label: String
-    let control: MonitorControl
-    let key: MonitorControl
-
-    private static let options: [(PresetValue.Input, String)] = [
-        (.hdmi1, "HDMI 1"),
-        (.hdmi2, "HDMI 2"),
-        (.dp, "DP"),
-        (.typeC, "USB-C"),
-    ]
-
-    @EnvironmentObject var store: MonitorStore
-
-    var body: some View {
-        let current = store.values[key] ?? control.range.lowerBound
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Picker("", selection: Binding<UInt16>(
-                get: { current },
-                set: { store.set(key, value: $0) }
-            )) {
-                ForEach(Self.options, id: \.1) { option in
-                    Text(option.1).tag(option.0.rawValue)
-                }
-            }
-            .labelsHidden()
-            .controlSize(.small)
-            .frame(maxWidth: 86)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
