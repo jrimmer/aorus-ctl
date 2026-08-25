@@ -19,7 +19,7 @@ struct AorusApp: App {
         MenuBarExtra("Aorus", systemImage: "display") {
             ControlsPanel()
                 .environmentObject(store)
-                .frame(width: 320, height: 440)
+                .frame(width: 320)
         }
         .menuBarExtraStyle(.window)
 

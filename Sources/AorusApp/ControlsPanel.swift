@@ -11,16 +11,20 @@ struct ControlsPanel: View {
             header
 
             if store.isConnected {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        DisplaySection()
-                        InputSection()
-                        PbpSection()
-                        PictureSection()
-                        ColorSection()
-                    }
-                    .padding(.vertical, 4)
+                // The sections are a fixed, known set, so we let them size to
+                // their content (the menu-bar window hugs the natural height,
+                // avoiding the empty-gap from a ScrollView's infinite ideal
+                // height). Bound above by available height so it never exceeds
+                // the screen.
+                VStack(alignment: .leading, spacing: 16) {
+                    DisplaySection()
+                    InputSection()
+                    PbpSection()
+                    PictureSection()
+                    ColorSection()
                 }
+                .padding(.vertical, 4)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(14)
