@@ -36,7 +36,7 @@ Grab the latest **`.dmg`** from the **Releases** page:
 - **PBP / PIP** — split the screen (side-by-side or picture-in-picture), pick each side's source, and **Switch** them. The **?** next to the title lists the shortcuts.
 - **Keyboard shortcuts** (work anywhere): **⌘⇧P** cycle PBP/PIP · **⌘⇧X** switch PBP/PIP inputs · **⌘Q** quit Aorus.
 
-**Reading values back:** Aorus remembers the values you set. Standard settings (brightness, contrast, volume, sharpness) can also be *read* from the monitor over the video cable — click **Refresh**. PBP/PIP, KVM, picture modes and colour can't be read back on this monitor, so Aorus restores whatever you last set each time it opens.
+**A note on reading values back:** Aorus can't read most settings from the monitor back into the app. If you change something with the monitor's own on-screen menu (the OSD), **the app won't know** — it may keep showing the old value until you drag its slider again. The app can still make changes, and it remembers the values you set **through the app**, restoring them the next time it opens. (Brightness, contrast, volume and sharpness can be read back over the video cable — click **Refresh**.)
 
 ## Uninstalling
 
