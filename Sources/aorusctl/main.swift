@@ -53,9 +53,9 @@ func printUsage() {
     USAGE:
       aorusctl list                          Discover monitor control devices
       aorusctl set <property> <value>        Set a property on the monitor
-      aorusctl get <property>                Read a property from the monitor
+      aorusctl get <property>                Read a property (⚠ experimental)
       aorusctl props                         List all known properties + ranges
-      aorusctl dump                          Dump the raw status report (hex)
+      aorusctl dump                          Dump the raw status report (hex, ⚠ experimental)
       aorusctl --dry-run set <p> <v>         Print report bytes without sending (DANGER: still opens device read-only — safe)
 
     Use '-n' / '--dry-run' with 'set' to see exactly which bytes would be sent.

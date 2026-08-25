@@ -4,6 +4,12 @@ Native macOS control for **Gigabyte / AORUS monitors** over USB HID — a zero-d
 
 Tested target: **AORUS CO49DQ** (49" QD-OLED). Built on the community-decoded protocol shared across Gigabyte's Realtek-HID monitors (M27Q / M32U / M32Q / M32QC / M28UC).
 
+Deep-dive reverse-engineering notes:
+
+- [docs/protocol.md](docs/protocol.md) — device, report descriptor, exact frame, the report-size STALL fix, and the status-read problem.
+- [docs/ddc-vendor-commands.md](docs/ddc-vendor-commands.md) — the vendor command table.
+- [docs/prior-art.md](docs/prior-art.md) — the community projects this builds on.
+
 ## Why this works
 
 Gigabyte monitors in this family are driven by a **Realtek HID controller** (`VID 0x0bda / PID 0x1100`). The controller exposes a standard USB HID interface, so **macOS needs no driver** — any user-space app can open it via IOKit and send a 192-byte vendor report. That's the entire gap: OSD Sidekick is Windows-only, so nobody wrote the macOS equivalent. We did.
@@ -26,9 +32,9 @@ swift build            # requires Xcode + Command Line Tools (macOS, Apple Silic
 ```
 aorusctl list                 Discover monitor control device(s)
 aorusctl set <prop> <value>   Set a property on the monitor
-aorusctl get <prop>           Read status (raw report)
+aorusctl get <prop>           Read a property from the monitor (⚠ experimental)
 aorusctl props                List all known properties + ranges
-aorusctl dump                 Dump the raw 193-byte status report (hex)
+aorusctl dump                 Dump the raw status report (hex) (⚠ experimental)
 aorusctl --dry-run set p v    Print the exact report bytes without sending
 ```
 
@@ -58,26 +64,24 @@ Properties (ranges in parentheses):
 | `led-indicator` | 0–2 | 0 always on, 1 always off, 2 standby on |
 | `kvm-switch` | 0–1 | **0 = USB-B, 1 = Type-C** |
 
-## On-hardware verification (4 steps)
+## On-hardware verification (confirmed on CO49DQ)
 
-Because no CO49DQ-specific unit exists in public tests yet, verify on your actual panel before trusting it for anything important:
+Status of the write path on the actual panel:
 
-1. **`aorusctl list`** — confirms USB enumeration.
-   - If you see `0bda:1100 ... Realtek ... HID Device`, protocol match is confirmed.
-   - If you see a *different* VID:PID, note it — the protocol may still match, but a different controller means we should re-sniff OSD Sidekick once (USBPcap + Wireshark) to confirm the frame layout before trusting `set`.
-   - If nothing shows, ensure upstream USB is plugged in, then `aorusctl list`.
+- **`aorusctl list`** — ✅ confirmed: finds `0x0bda:0x1100 HID Device [Realtek]`.
+- **`aorusctl set <prop> <value>`** — ✅ **confirmed**: e.g. `set brightness 50` / `30` / `70` visibly apply on the CO49DQ. The write path is verified on real hardware.
+- **`aorusctl dump` / `get`** — ⚠️ **not yet working.** Reading current status back is an open problem (the reference gbmonctl never reads either). See [docs/protocol.md §5](docs/protocol.md).*
 
-2. **`aorusctl dump`** — captures the 193-byte status report; sanity-check it's non-zero.
+For first-time bring-up on a *different* panel:
 
-3. **`aorusctl set brightness 50`** — the display should visibly dim.
-
-4. **`aorusctl set pbp-pip-mode 2`** (PBP) and `set pbp-pip-source 1` — verify PBP engages.
-
-Each command prints the exact bytes it sent with `--dry-run` first, so you can confirm before committing anything.
+1. `aorusctl list` — confirms USB enumeration. If the VID:PID is **not** `0bda:1100`, note it; the protocol may still match but a different controller warrants one OSD Sidekick re-sniff (USBPcap + Wireshark) before trusting `set`.
+2. `aorusctl --dry-run set brightness 50` — print the exact bytes before applying.
+3. `aorusctl set brightness 50` — the display should visibly dim.
+4. `aorusctl set pbp-pip-mode 2` (PBP) and `set pbp-pip-source 1` — verify PBP engages.
 
 ## Protocol notes
 
-The frame is 193 bytes: a leading report id `0x00` plus a 192-byte payload.
+The frame is 192 bytes: a bare vendor report (see the important note below — it is **not** 193 bytes on the wire).
 
 - Payload preamble: `40 c6 ... 20 00 6e 00 80` (fixed)
 - Command block at payload offset `0x40`:
@@ -87,6 +91,10 @@ The frame is 193 bytes: a leading report id `0x00` plus a 192-byte payload.
   - command bytes: single byte for `0x10/0x12/0x87...`; two bytes `0x0e XX` for vendor controls
   - value byte
   - checksum byte
+
+### ⚠️ Report size — send 192 bytes, not 193
+
+The report descriptor (**no report-ID item**, `MaxOutputReportSize = 192`) expects a **bare 192-byte** output report. Sending the conventional 193-byte frame (leading report-ID byte + 192 payload) makes the device STALL the pipe with `kUSBHostReturnPipeStalled` (`0xe0005000`). gbmonctl gets away with a 193-byte Go buffer only because hidapi peels the report-ID byte off; direct IOKit callers must transmit the 192-byte payload with `reportID 0`. See [docs/protocol.md §4](docs/protocol.md#4--the-report-size-trap-usb-pipe-stall).
 
 Checksum (matches gbmonctl exactly):
 
@@ -100,12 +108,12 @@ Prior art this is built on: [kelvie/gbmonctl](https://github.com/kelvie/gbmonctl
 ## Roadmap
 
 - [x] Protocol engine + checksum (verified against gbmonctl's known-good bytes)
-- [x] HID transport over IOKit (discovery, write, read)
-- [x] CLI (`set` / `list` / `props` / `dump` / dry-run)
-- [ ] On-hardware verification on the CO49DQ
-- [ ] Decode the status report for true `get <prop>` reads
+- [x] **HID transport over IOKit (write path verified live on the CO49DQ)**
+- [x] CLI (`set` / `list` / `props` / dump / dry-run)
+- [x] Deep-dive docs (`docs/`)
+- [ ] Decode the status report for true `get <prop>` reads (open problem — gbmonctl never reads either)
 - [ ] **SwiftUI menu-bar app** wrapping AorusCore (sliders, PBP/PIP toggles, KVM switch)
-- [ ] Handle alternate controller VID:PID if the CO49DQ differs from 0bda:1100
+- [ ] Handle alternate controller VID:PID if a different panel uses one
 
 ## Safety
 
