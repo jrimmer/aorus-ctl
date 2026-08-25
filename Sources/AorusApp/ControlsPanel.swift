@@ -432,9 +432,6 @@ private struct KeyHelpPopover: View {
             keyCap("X")
             Text("Swap the two PBP/PIP inputs")
                 .font(.caption)
-            keyCap("Q")
-            Text("Quit Aorus")
-                .font(.caption)
         }
         .padding(12)
         .frame(width: 240, alignment: .leading)
