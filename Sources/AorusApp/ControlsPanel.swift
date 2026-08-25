@@ -28,7 +28,7 @@ struct ControlsPanel: View {
             }
         }
         .padding(14)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
         .onAppear { store.connect() }
     }
 

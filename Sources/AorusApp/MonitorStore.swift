@@ -127,12 +127,41 @@ public final class MonitorStore: ObservableObject {
 
     /// Writes `value` to `control`, recording it optimistically and updating
     /// last-known state. Serialized on `ioQueue`.
+    ///
+    /// When activating PBP/PIP (pbpPipMode != 0), the monitor applies the mode
+    /// using whatever inputs are set *at that instant*, so the two sources must
+    /// be written BEFORE the mode flips on. We therefore enqueue `.source` and
+    /// `.pbpPipSource` ahead of the mode write on the serial queue (matching the
+    /// proven CLI order: source, second source, then mode).
     @discardableResult
     public func set(_ control: MonitorControl, value: UInt16) -> Bool {
         // Clamp to the control's valid range before storing/sending.
         let clamped = min(max(value, control.range.lowerBound), control.range.upperBound)
+        // When activating PBP/PIP, the monitor applies the mode using whatever
+        // inputs are set at that instant, so capture the two source values the
+        // app wants BEFORE dispatching so they can be written ahead of the mode
+        // on the serial queue.
+        let primarySource = values[.source] ?? 0
+        let secondSource = values[.pbpPipSource] ?? 0
         if let monitor = controller {
             ioQueue.async { [weak self] in
+                // Push the two sources first so the monitor uses them the
+                // moment it enters the mode (proven CLI order: source, second
+                // source, then mode).
+                if control == .pbpPipMode && clamped != 0 {
+                    let orderedSources: [(MonitorControl, UInt16)] = [
+                        (.source, primarySource),
+                        (.pbpPipSource, secondSource),
+                    ]
+                    for (sourceControl, sourceValue) in orderedSources {
+                        do { try monitor.set(sourceControl, value: sourceValue) }
+                        catch {
+                            Task { @MainActor in
+                                self?.statusMessage = "Write to \(sourceControl.label) failed"
+                            }
+                        }
+                    }
+                }
                 do {
                     try monitor.set(control, value: clamped)
                 } catch {
