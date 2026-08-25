@@ -203,9 +203,10 @@ Verified live on the CO49DQ: `set brightness 50 / 30 / 70` all apply.
 
 ## 5. Reads / `get` — the open problem
 
-**Status: not implemented, even in the reference.** The definitive prior-art
-tool **gbmonctl only ever writes**; it never reads a value back. Its own source
-carries the TODOs:
+**Status: resolved — reads are NOT supported over the HID path on the CO49DQ.**
+
+The reference tool **gbmonctl only ever writes**; it never reads a value back.
+Its own source carries an aspirational TODO:
 
 ```go
 // TODO: get current value and nicely transition ...
@@ -213,24 +214,38 @@ carries the TODOs:
 //       of the response if we do a read
 ```
 
-Consequences for this project:
+We tested this exhaustively on real hardware (`/tmp/read_sweep.swift`):
 
-- There is **no known-good read mechanism** to copy — anything we do here is
-  original reverse engineering.
-- A synchronous `IOHIDDeviceGetReport(kIOHIDReportTypeInput, ...)` on the
-  192-byte input report **still STALLs** (`0xE0005000`) even at the correct
-  192-byte size. So the device does **not** serve current state via a
-  classic input GET_REPORT.
-- Likely next steps (unexplored): the status may be **pushed** asynchronously on
-  the interrupt IN pipe (register an `IOHIDReportTypeInput` callback with
-  `IOHIDDeviceRegisterInputReportCallback`) — possibly only *after* a request
-  write that prompts a response; or the response report has a different layout
-  entirely.
+- The read request is a DDC/CI **Get VCP Feature** (opcode `0x01` instead of the
+  write opcode `0x03`), with a reduced message length. A brightness read is
+  `51 82 01 10` (header `0x51`, length `0x82` = `0x81` + 1 cmd byte and **no**
+  value byte, opcode `0x01`, VCP `0x10`). For a vendor feature the DDC/CI
+  control is `0xE0` with a selector byte on the cable path.
+- **Every get-request write succeeds** at the USB level
+  (`IOHIDDeviceSetReport` returns SUCCESS), across all variants:
+  with/without checksum, length `0x82`/`0x81`, standard VCP `0x10`/`0x12`/`0x62`,
+  vendor `0xE0` + selector, and a plain write (which never acks either).
+- **Zero asynchronous input reports are ever pushed.** An
+  `IOHIDDeviceRegisterInputReportCallback` on a persistent 192-byte buffer
+  received nothing over 5s+ of runloop across every request.
+- A synchronous `IOHIDDeviceGetReport(kIOHIDReportTypeInput, 192)` **still
+  STALLs** (`0xE0005000`) even *after* a successful get-request write.
 
-Until this is solved, `get`/`dump` are not reliable. The **write path — the
-actual monitor control — is complete and verified**, which is the core of the
-tool and the menu-bar app. The app can default sliders to known-safe mid values
-and rely on writes to apply changes.
+**Conclusion:** the CO49DQ's Realtek controller is **write-only over the USB HID
+control interface**. It accepts control commands but does not serve status
+read-backs via the HID input report. This is consistent with every prior-art
+tool (none reads) and with the single-Input-collection descriptor.
+
+**The genuine read path is DDC/CI over the video cable** (the HDMI/DP/Type-C
+DDC I2C bus), which is a *different* transport entirely (e.g. `ddcutil` / MCCS
+`Get VCP Feature` over the display channel), not the USB HID interface we write
+through. That is the only route to current-value reads, and only works for
+**standard** VCP codes (brightness `0x10`, contrast `0x12`). Vendor features
+(PBP/PIP, KVM, picture modes) have no cable-DDC read-back on most panels either.
+
+For the menu-bar app this means: **treat writes as authoritative**; track
+last-set values in the app and default sliders to known-safe values. Do not
+rely on `get` over HID (it cannot work).
 
 ---
 
