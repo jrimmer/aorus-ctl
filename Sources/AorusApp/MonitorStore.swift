@@ -148,4 +148,17 @@ public final class MonitorStore: ObservableObject {
         self.defaults.set(Int(clamped), forKey: Self.defaultsPrefix + control.label)
         return controller != nil
     }
+
+    /// Cycles PBP/PIP mode through its three states: Off → PIP → PBP → Off.
+    public func cyclePbpPipMode() {
+        let current = values[.pbpPipMode] ?? 0
+        let next = (current + 1) % 3
+        set(.pbpPipMode, value: next)
+    }
+
+    /// Swaps the two PBP/PIP inputs at the monitor via the native vendor swap
+    /// opcode (0xe0 0x10 = 1).
+    public func swapSources() {
+        set(.pbpPipSwitch, value: 1)
+    }
 }

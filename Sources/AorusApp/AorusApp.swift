@@ -20,6 +20,7 @@ struct AorusApp: App {
             ControlsPanel()
                 .environmentObject(store)
                 .frame(width: 320)
+                .onAppear { registerHotkeys() }
         }
         .menuBarExtraStyle(.window)
 
@@ -28,4 +29,19 @@ struct AorusApp: App {
                 .environmentObject(store)
         }
     }
+
+    /// Registers the system-wide hotkeys once. Retained so the Carbon refs stay
+    /// alive; also guards against double registration on re-appear.
+    @MainActor
+    func registerHotkeys() {
+        guard hotkeyManager == nil else { return }
+        let manager = HotkeyManager(
+            onCyclePbpPip: { [weak store] in store?.cyclePbpPipMode() },
+            onSwap: { [weak store] in store?.swapSources() }
+        )
+        manager.register()
+        hotkeyManager = manager
+    }
+
+    @State private var hotkeyManager: HotkeyManager?
 }
