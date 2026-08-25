@@ -426,24 +426,21 @@ private struct KeyHelpPopover: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Keyboard shortcuts")
                 .font(.caption.weight(.semibold))
-            keyCap("P")
-            Text("Cycle PBP/PIP mode")
-                .font(.caption)
-            keyCap("X")
-            Text("Swap the PBP/PIP inputs")
-                .font(.caption)
+            shortcutRow(keys: ["⌘", "⇧", "P"], label: "Cycle PBP/PIP mode")
+            shortcutRow(keys: ["⌘", "⇧", "X"], label: "Swap the PBP/PIP inputs")
         }
         .padding(12)
         // Let the popover hug its content instead of a fixed width.
         .fixedSize()
     }
 
-    /// Renders a ⌘⇧<key> cap row.
-    private func keyCap(_ key: String) -> some View {
+    /// A single shortcut: key caps on the left, description beside them.
+    private func shortcutRow(keys: [String], label: String) -> some View {
         HStack(spacing: 3) {
-            cap("⌘")
-            cap("⇧")
-            cap(key)
+            ForEach(keys, id: \.self) { cap($0) }
+            Text(label)
+                .font(.caption)
+                .padding(.leading, 6)
         }
     }
 
