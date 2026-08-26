@@ -125,6 +125,30 @@ public final class MonitorStore: ObservableObject {
         self.isConnected = false
     }
 
+    /// Handles a failed write. If the HID endpoint has dropped off the bus
+    /// (the CO49DQ's USB upstream can vanish while video stays up, e.g. after
+    /// an input/PBP-PIP re-route), flip to a disconnected state so the panel
+    /// surfaces the truth instead of showing a stale green "Connected".
+    /// Called from the main actor; the bus enumeration is done off-thread.
+    @MainActor
+    private func handleWriteFailure(_ message: String) {
+        ioQueue.async { [weak self] in
+            let present = MonitorController.isDevicePresent()
+            Task { @MainActor [weak self, present, message] in
+                guard let self else { return }
+                if !present {
+                    // Device genuinely gone: reflect it, drop the stale handle.
+                    self.controller = nil
+                    self.isConnected = false
+                    self.statusMessage = "USB control lost — reconnect the monitor upstream"
+                } else {
+                    // Device still there: report the write failure as-is.
+                    self.statusMessage = message
+                }
+            }
+        }
+    }
+
     /// Writes `value` to `control`, recording it optimistically and updating
     /// last-known state. Serialized on `ioQueue`.
     ///
@@ -156,12 +180,9 @@ public final class MonitorStore: ObservableObject {
                     for (sourceControl, sourceValue) in orderedSources {
                         do { try monitor.set(sourceControl, value: sourceValue) }
                         catch {
-                            // Only a Sendable `String` is sent across the
-                            // isolation boundary; `self` stays weakly captured
-                            // on the main actor (Swift 6 data-race safety).
                             let message = "Write to \(sourceControl.label) failed"
                             Task { @MainActor [weak self, message] in
-                                self?.statusMessage = message
+                                self?.handleWriteFailure(message)
                             }
                         }
                     }
@@ -171,7 +192,7 @@ public final class MonitorStore: ObservableObject {
                 } catch {
                     let message = "Write to \(control.label) failed"
                     Task { @MainActor [weak self, message] in
-                        self?.statusMessage = message
+                        self?.handleWriteFailure(message)
                     }
                 }
             }

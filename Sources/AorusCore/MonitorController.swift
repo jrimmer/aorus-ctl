@@ -40,6 +40,16 @@ public struct MonitorController: Sendable {
         return MonitorController(connection: conn, ddc: DDCReader())
     }
 
+    /// Whether a monitor control device is currently present on the USB/HID
+    /// bus. Cheap enumeration that doesn't hold a handle; used by the app to
+    /// detect a dropped upstream connection (the HID controller can vanish
+    /// while the video path stays up, e.g. after an input/PBP-PIP re-route).
+    public static func isDevicePresent(
+        vid: Int = defaultVendorID, pid: Int = defaultProductID
+    ) -> Bool {
+        !findMonitorDevices(vid: vid, pid: pid).isEmpty
+    }
+
     /// Sets a monitor property to the given value (within its range).
     ///
     /// Standard VCP controls (brightness/contrast/volume/sharpness) are
