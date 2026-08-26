@@ -46,6 +46,17 @@ public final class MonitorStore: ObservableObject {
     private var controller: MonitorController?
     private var ddcReader: DDCReader?
 
+    /// Background auto-reconnect loop, started when the HID control endpoint
+    /// drops off the bus. Cancelled (set to nil) on a successful reconnect or a
+    /// manual disconnect/connect. Only one loop runs at a time.
+    private var reconnectTask: Task<Void, Never>?
+    private var isAutoReconnecting = false
+    /// Upper bound on automatic reconnect attempts before giving up and
+    /// asking the user to reconnect manually (avoids an infinite background
+    /// poll). Between attempts we back off.
+    private let maxReconnectAttempts = 60
+    private let reconnectIntervalNanoseconds: UInt64 = 2_000_000_000 // 2s
+
     /// Backing defaults store; injectable for tests.
     private let defaults: UserDefaults
 
@@ -76,6 +87,9 @@ public final class MonitorStore: ObservableObject {
     /// volume/sharpness from the *cable-DDC* read, which is the only path that
     /// reports real current values (the HID controller is write-only).
     public func connect() {
+        // A manual connect supersedes any background auto-reconnect loop.
+        stopAutoReconnect()
+        endAutoReconnectState()
         if controller == nil {
             do {
                 let monitor = try MonitorController.openFirst()
@@ -84,7 +98,10 @@ public final class MonitorStore: ObservableObject {
                 self.statusMessage = "Connected"
             } catch {
                 self.isConnected = false
-                self.statusMessage = "No monitor found. Is the USB upstream connected?"
+                self.statusMessage = "No monitor found. Waiting for the USB upstream…"
+                // If the device might just be momentarily absent, start the
+                // auto-reconnect loop so it comes up on its own.
+                startAutoReconnect()
                 return
             }
         }
@@ -121,31 +138,127 @@ public final class MonitorStore: ObservableObject {
 
     /// Disconnect and drop the open handle so the USB device can be re-sent.
     public func disconnect() {
+        stopAutoReconnect()
+        endAutoReconnectState()
         self.controller = nil
         self.isConnected = false
     }
 
     /// Handles a failed write. If the HID endpoint has dropped off the bus
     /// (the CO49DQ's USB upstream can vanish while video stays up, e.g. after
-    /// an input/PBP-PIP re-route), flip to a disconnected state so the panel
-    /// surfaces the truth instead of showing a stale green "Connected".
-    /// Called from the main actor; the bus enumeration is done off-thread.
+    /// an input/PBP-PIP re-route), flip to a disconnected state and start an
+    /// **automatic** reconnect loop that retries until the device returns.
+    /// If the device is still present (a transient STALL), retry the same
+    /// write a couple of times before surfacing an error. Called from the main
+    /// actor; bus enumeration is done off-thread.
     @MainActor
-    private func handleWriteFailure(_ message: String) {
+    private func handleWriteFailure(_ control: MonitorControl, _ value: UInt16, _ message: String) {
         ioQueue.async { [weak self] in
             let present = MonitorController.isDevicePresent()
-            Task { @MainActor [weak self, present, message] in
+            Task { @MainActor [weak self, present, control, value, message] in
                 guard let self else { return }
                 if !present {
-                    // Device genuinely gone: reflect it, drop the stale handle.
+                    // Device genuinely gone: reflect it, drop the stale
+                    // handle, and start auto-reconnect.
                     self.controller = nil
                     self.isConnected = false
-                    self.statusMessage = "USB control lost — reconnect the monitor upstream"
+                    self.statusMessage = "Monitor offline — reconnecting…"
+                    self.startAutoReconnect()
                 } else {
-                    // Device still there: report the write failure as-is.
-                    self.statusMessage = message
+                    // Device still there: this is a transient STALL (or a stale
+                    // handle). Retry the write once, and only surface an error
+                    // if it fails again.
+                    self.retryWrite(control, value, originalMessage: message)
                 }
             }
+        }
+    }
+
+    /// Re-attempts a single control write after a transient failure. If it
+    /// succeeds, clears the error; otherwise surfaces the message.
+    @MainActor
+    private func retryWrite(_ control: MonitorControl, _ value: UInt16, originalMessage: String) {
+        guard let monitor = controller else {
+            statusMessage = originalMessage
+            return
+        }
+        do {
+            try monitor.set(control, value: value)
+            statusMessage = "Connected"
+        } catch {
+            statusMessage = originalMessage
+        }
+    }
+
+    /// Starts the background auto-reconnect loop (idempotent — only one loop
+    /// runs at a time). Polls for the HID device; once present, re-opens it,
+    /// reconnects, refreshes cable-DDC values, and stops. Gives up after
+    /// `maxReconnectAttempts` to avoid an infinite background poll.
+    ///
+    /// Note: the immutable counters are captured as local `let`s so the
+    /// detached task never reads main-actor-isolated state synchronously
+    /// (which the older CI compiler flags as a data race).
+    private func startAutoReconnect() {
+        guard !isAutoReconnecting else { return }
+        isAutoReconnecting = true
+        reconnectTask?.cancel()
+        let maxAttempts = maxReconnectAttempts
+        let interval = reconnectIntervalNanoseconds
+        reconnectTask = Task.detached { [weak self] in
+            var attempts = 0
+            while !Task.isCancelled && attempts < maxAttempts {
+                // Main-actor-free presence check off the hot path.
+                if MonitorController.isDevicePresent() {
+                    let didReconnect = await self?.attemptReconnect() ?? false
+                    if didReconnect {
+                        return
+                    }
+                }
+                attempts += 1
+                try? await Task.sleep(nanoseconds: interval)
+            }
+            // Gave up: ask the user to reconnect manually.
+            await self?.finishAutoReconnect(success: false)
+        }
+    }
+
+    /// Attempts to re-open the device after it reappeared on the bus. Returns
+    /// true if the handle was re-established.
+    @MainActor
+    private func attemptReconnect() -> Bool {
+        do {
+            let monitor = try MonitorController.openFirst()
+            self.controller = monitor
+            self.isConnected = true
+            self.statusMessage = "Connected"
+            stopAutoReconnect()
+            endAutoReconnectState()
+            refreshFromDDC()
+            return true
+        } catch {
+            // Still absent or failed: keep polling.
+            return false
+        }
+    }
+
+    /// Ends the auto-reconnect loop.
+    private func stopAutoReconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+    }
+
+    /// Resets the auto-reconnect in-flight guard so a fresh loop can start.
+    private func endAutoReconnectState() {
+        isAutoReconnecting = false
+    }
+
+    /// Marks a gave-up auto-reconnect (the loop hit its retry cap) so the
+    /// panel asks the user to reconnect manually.
+    @MainActor
+    private func finishAutoReconnect(success: Bool) {
+        endAutoReconnectState()
+        if !success {
+            self.statusMessage = "Couldn't reconnect. Check the USB upstream and click Retry."
         }
     }
 
@@ -181,8 +294,8 @@ public final class MonitorStore: ObservableObject {
                         do { try monitor.set(sourceControl, value: sourceValue) }
                         catch {
                             let message = "Write to \(sourceControl.label) failed"
-                            Task { @MainActor [weak self, message] in
-                                self?.handleWriteFailure(message)
+                            Task { @MainActor [weak self, sourceControl, sourceValue, message] in
+                                self?.handleWriteFailure(sourceControl, sourceValue, message)
                             }
                         }
                     }
@@ -191,8 +304,8 @@ public final class MonitorStore: ObservableObject {
                     try monitor.set(control, value: clamped)
                 } catch {
                     let message = "Write to \(control.label) failed"
-                    Task { @MainActor [weak self, message] in
-                        self?.handleWriteFailure(message)
+                    Task { @MainActor [weak self, control, clamped, message] in
+                        self?.handleWriteFailure(control, clamped, message)
                     }
                 }
             }
